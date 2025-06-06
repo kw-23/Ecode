@@ -1,0 +1,747 @@
+/* University Library Design System */
+:root {
+  /* Academic Color Palette */
+  --library-navy: #1e293b;
+  --library-gold: #d97706;
+  --library-burgundy: #991b1b;
+  --library-forest: #166534;
+  --library-slate: #475569;
+  --library-cream: #fefce8;
+  --library-parchment: #fef3c7;
+  --library-marble: #f8fafc;
+  --library-charcoal: #374151;
+
+  /* Neutral Grays */
+  --gray-50: #f9fafb;
+  --gray-100: #f3f4f6;
+  --gray-200: #e5e7eb;
+  --gray-300: #d1d5db;
+  --gray-400: #9ca3af;
+  --gray-500: #6b7280;
+  --gray-600: #4b5563;
+  --gray-700: #374151;
+  --gray-800: #1f2937;
+  --gray-900: #111827;
+
+  /* Academic Gradients */
+  --gradient-academic: linear-gradient(135deg, var(--library-navy) 0%, var(--library-slate) 100%);
+  --gradient-gold: linear-gradient(135deg, var(--library-gold) 0%, #f59e0b 100%);
+  --gradient-knowledge: linear-gradient(135deg, var(--library-forest) 0%, #059669 100%);
+  --gradient-wisdom: linear-gradient(135deg, var(--library-burgundy) 0%, #dc2626 100%);
+  --gradient-parchment: linear-gradient(135deg, var(--library-cream) 0%, var(--library-parchment) 100%);
+
+  /* Architectural Shadows */
+  --shadow-pillar: 0 8px 32px rgba(0, 0, 0, 0.12);
+  --shadow-column: 0 16px 64px rgba(0, 0, 0, 0.15);
+  --shadow-monument: 0 24px 96px rgba(0, 0, 0, 0.2);
+  --shadow-inscription: inset 0 2px 8px rgba(0, 0, 0, 0.1);
+  --shadow-relief: 0 4px 16px rgba(0, 0, 0, 0.08);
+
+  /* Typography Scale */
+  --text-monument: 4rem;
+  --text-inscription: 2.5rem;
+  --text-chapter: 1.875rem;
+  --text-verse: 1.25rem;
+  --text-footnote: 0.875rem;
+  --text-annotation: 0.75rem;
+
+  /* Spacing System */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+  --space-24: 6rem;
+  --space-32: 8rem;
+
+  /* Transitions */
+  --transition-academic: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --transition-scholarly: all 0.6s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+/* Base Styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  font-size: 16px;
+}
+
+body {
+  font-family: "Inter", "Georgia", serif;
+  background: var(--library-marble);
+  color: var(--library-charcoal);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.font-academic {
+  font-family: "Space Grotesk", "Times New Roman", serif;
+}
+
+.font-scholarly {
+  font-family: "JetBrains Mono", "Courier New", monospace;
+}
+
+/* Library Architecture Layout */
+.library-hall {
+  width: 100vw;
+  position: relative;
+  left: 50%;
+  right: 50%;
+  margin-left: -50vw;
+  margin-right: -50vw;
+  background: linear-gradient(180deg, var(--library-marble) 0%, var(--gray-50) 100%),
+    repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 100px,
+      rgba(30, 41, 59, 0.02) 100px,
+      rgba(30, 41, 59, 0.02) 102px
+    );
+  min-height: calc(100vh - 5rem);
+}
+
+.library-content {
+  max-width: 1800px;
+  margin: 0 auto;
+  padding: var(--space-8);
+}
+
+/* Grand Entrance */
+.grand-entrance {
+  background: var(--gradient-academic);
+  color: white;
+  padding: var(--space-24) var(--space-8);
+  margin-bottom: var(--space-16);
+  position: relative;
+  overflow: hidden;
+}
+
+.grand-entrance::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 2px,
+    rgba(255, 255, 255, 0.03) 2px,
+    rgba(255, 255, 255, 0.03) 4px
+  );
+  pointer-events: none;
+}
+
+.grand-entrance::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 8px;
+  background: var(--gradient-gold);
+}
+
+.entrance-columns {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--space-16);
+  align-items: center;
+  position: relative;
+  z-index: 10;
+}
+
+.entrance-inscription {
+  max-width: 800px;
+}
+
+.entrance-inscription h1 {
+  font-size: var(--text-monument);
+  font-weight: 900;
+  line-height: 1.1;
+  margin-bottom: var(--space-6);
+  font-family: "Space Grotesk", serif;
+  text-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+.entrance-inscription p {
+  font-size: var(--text-verse);
+  opacity: 0.9;
+  margin-bottom: var(--space-8);
+  line-height: 1.7;
+}
+
+.entrance-seal {
+  width: 200px;
+  height: 200px;
+  background: var(--gradient-gold);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+}
+
+.entrance-seal::before {
+  content: "";
+  position: absolute;
+  inset: 8px;
+  background: var(--library-navy);
+  clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+}
+
+.seal-content {
+  position: relative;
+  z-index: 10;
+  color: var(--library-gold);
+  text-align: center;
+}
+
+/* Academic Statistics */
+.statistics-hall {
+  margin-bottom: var(--space-16);
+}
+
+.statistics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: var(--space-8);
+}
+
+.statistic-pillar {
+  background: white;
+  padding: var(--space-8);
+  box-shadow: var(--shadow-pillar);
+  position: relative;
+  transition: var(--transition-academic);
+  border-left: 6px solid var(--library-gold);
+}
+
+.statistic-pillar::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--gradient-gold);
+}
+
+.statistic-pillar:hover {
+  transform: translateY(-8px);
+  box-shadow: var(--shadow-column);
+}
+
+.pillar-capital {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-6);
+}
+
+.capital-icon {
+  width: 4rem;
+  height: 4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--gradient-academic);
+  color: white;
+  clip-path: polygon(0 0, 100% 0, 85% 100%, 15% 100%);
+}
+
+.statistic-number {
+  font-size: var(--text-inscription);
+  font-weight: 900;
+  color: var(--library-navy);
+  font-family: "Space Grotesk", serif;
+}
+
+.statistic-label {
+  font-size: var(--text-verse);
+  color: var(--library-slate);
+  font-weight: 600;
+  margin-bottom: var(--space-4);
+}
+
+.statistic-change {
+  display: flex;
+  align-items: center;
+  font-size: var(--text-footnote);
+  font-weight: 600;
+  color: var(--library-forest);
+}
+
+/* Reading Rooms */
+.reading-rooms {
+  margin-bottom: var(--space-16);
+}
+
+.rooms-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--space-6);
+}
+
+.reading-room {
+  background: white;
+  padding: var(--space-8);
+  box-shadow: var(--shadow-relief);
+  transition: var(--transition-academic);
+  position: relative;
+  border-top: 4px solid var(--library-burgundy);
+}
+
+.reading-room::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--gradient-wisdom);
+}
+
+.reading-room:hover {
+  transform: translateY(-6px);
+  box-shadow: var(--shadow-pillar);
+}
+
+.room-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: var(--space-6);
+}
+
+.room-icon {
+  width: 3rem;
+  height: 3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--gradient-wisdom);
+  color: white;
+  margin-right: var(--space-4);
+  clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+}
+
+.room-title {
+  font-size: var(--text-chapter);
+  font-weight: 700;
+  color: var(--library-navy);
+}
+
+.room-description {
+  color: var(--library-slate);
+  margin-bottom: var(--space-6);
+  line-height: 1.6;
+}
+
+/* Study Sections */
+.study-sections {
+  margin-bottom: var(--space-16);
+}
+
+.sections-layout {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: var(--space-8);
+}
+
+.main-study-area {
+  background: white;
+  padding: var(--space-8);
+  box-shadow: var(--shadow-pillar);
+  border-left: 8px solid var(--library-forest);
+}
+
+.study-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.sidebar-section {
+  background: white;
+  padding: var(--space-6);
+  box-shadow: var(--shadow-relief);
+  border-top: 3px solid var(--library-gold);
+}
+
+.study-item {
+  display: flex;
+  align-items: center;
+  padding: var(--space-4);
+  margin-bottom: var(--space-3);
+  background: var(--gray-50);
+  transition: var(--transition-academic);
+  border-left: 3px solid transparent;
+}
+
+.study-item:hover {
+  background: var(--library-cream);
+  border-left-color: var(--library-gold);
+  transform: translateX(4px);
+}
+
+.study-icon {
+  width: 2.5rem;
+  height: 2.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--gradient-knowledge);
+  color: white;
+  margin-right: var(--space-4);
+  clip-path: polygon(30% 0%, 70% 0%, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0% 70%, 0% 30%);
+}
+
+/* Progress Tracking */
+.progress-tracking {
+  margin-bottom: var(--space-16);
+}
+
+.tracking-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: var(--space-8);
+}
+
+.progress-manuscript {
+  background: white;
+  padding: var(--space-8);
+  box-shadow: var(--shadow-pillar);
+  position: relative;
+  border: 2px solid var(--gray-200);
+}
+
+.progress-manuscript::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 6px;
+  background: var(--gradient-academic);
+}
+
+.manuscript-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-6);
+  padding-bottom: var(--space-4);
+  border-bottom: 2px solid var(--gray-100);
+}
+
+.manuscript-title {
+  font-size: var(--text-chapter);
+  font-weight: 700;
+  color: var(--library-navy);
+}
+
+.manuscript-badge {
+  padding: var(--space-2) var(--space-4);
+  background: var(--gradient-gold);
+  color: white;
+  font-size: var(--text-annotation);
+  font-weight: 600;
+  clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 50%, calc(100% - 8px) 100%, 0 100%);
+}
+
+.progress-bar-container {
+  background: var(--gray-200);
+  height: 12px;
+  margin: var(--space-4) 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.progress-bar {
+  height: 100%;
+  background: var(--gradient-knowledge);
+  position: relative;
+  transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.progress-bar::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 4px,
+    rgba(255, 255, 255, 0.2) 4px,
+    rgba(255, 255, 255, 0.2) 8px
+  );
+}
+
+/* Action Buttons */
+.academic-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4) var(--space-8);
+  font-weight: 600;
+  text-decoration: none;
+  transition: var(--transition-academic);
+  border: none;
+  cursor: pointer;
+  font-size: var(--text-footnote);
+  position: relative;
+  overflow: hidden;
+  gap: var(--space-2);
+  clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 0 100%);
+}
+
+.academic-button::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left 0.6s;
+}
+
+.academic-button:hover::before {
+  left: 100%;
+}
+
+.btn-primary {
+  background: var(--gradient-academic);
+  color: white;
+  box-shadow: var(--shadow-relief);
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-pillar);
+  color: white;
+}
+
+.btn-secondary {
+  background: white;
+  color: var(--library-navy);
+  border: 2px solid var(--library-navy);
+  box-shadow: var(--shadow-relief);
+}
+
+.btn-secondary:hover {
+  background: var(--library-navy);
+  color: white;
+  transform: translateY(-2px);
+}
+
+.btn-gold {
+  background: var(--gradient-gold);
+  color: white;
+  box-shadow: var(--shadow-relief);
+}
+
+.btn-gold:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-pillar);
+  color: white;
+}
+
+/* Section Headers */
+.section-header {
+  text-align: center;
+  margin-bottom: var(--space-12);
+  position: relative;
+}
+
+.section-title {
+  font-size: var(--text-inscription);
+  font-weight: 800;
+  color: var(--library-navy);
+  margin-bottom: var(--space-4);
+  font-family: "Space Grotesk", serif;
+  position: relative;
+}
+
+.section-title::after {
+  content: "";
+  position: absolute;
+  bottom: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80px;
+  height: 4px;
+  background: var(--gradient-gold);
+}
+
+.section-subtitle {
+  font-size: var(--text-verse);
+  color: var(--library-slate);
+  max-width: 600px;
+  margin: 0 auto;
+  line-height: 1.7;
+}
+
+/* Animations */
+@keyframes float-academic {
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-12px);
+  }
+}
+
+@keyframes fade-in-scholarly {
+  from {
+    opacity: 0;
+    transform: translateY(40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes inscribe {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes illuminate {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* Responsive Design */
+@media (max-width: 1400px) {
+  .library-content {
+    padding: var(--space-6);
+  }
+
+  .sections-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1024px) {
+  .entrance-columns {
+    grid-template-columns: 1fr;
+    text-align: center;
+    gap: var(--space-8);
+  }
+
+  .entrance-inscription h1 {
+    font-size: var(--text-inscription);
+  }
+
+  .statistics-grid,
+  .rooms-grid,
+  .tracking-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .library-content {
+    padding: var(--space-4);
+  }
+
+  .grand-entrance {
+    padding: var(--space-16) var(--space-4);
+  }
+
+  .entrance-inscription h1 {
+    font-size: var(--text-chapter);
+  }
+
+  .entrance-seal {
+    width: 150px;
+    height: 150px;
+  }
+}
+
+/* Utility Classes */
+.animate-scholarly {
+  animation: fade-in-scholarly 0.8s ease-out;
+}
+.animate-inscribe {
+  animation: inscribe 0.6s ease-out;
+}
+.animate-float {
+  animation: float-academic 6s ease-in-out infinite;
+}
+
+.text-academic {
+  background: var(--gradient-academic);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.text-gold {
+  background: var(--gradient-gold);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Print Styles */
+@media print {
+  .library-hall {
+    background: white;
+    color: black;
+  }
+
+  .grand-entrance {
+    background: white;
+    color: black;
+    border: 2px solid black;
+  }
+}
+
+/* High Contrast Mode */
+@media (prefers-contrast: high) {
+  :root {
+    --library-navy: #000000;
+    --library-gold: #ffaa00;
+    --gray-50: #ffffff;
+    --gray-900: #000000;
+  }
+}
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
