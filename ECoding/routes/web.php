@@ -103,15 +103,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/template', [StuClientController::class, 'downloadTemplate'])->name('template');
     });
 
-    // Admin pages
-    Route::get('/analytics', function () {
-        return view('admin.analytics');
-    })->name('analytics');
-
-    Route::get('/students', function () {
-        return view('admin.students.index');
-    })->name('students.index');
-
     // Reports and statistics
     Route::prefix('reports')->name('reports.')->group(function () {
         Route::get('/dashboard', [DashboardController::class, 'reports'])->name('dashboard');
@@ -152,13 +143,13 @@ Route::middleware('guest:client')->group(function () {
     Route::get('/client/reset-password/{token}', [ClientLoginController::class, 'showResetPasswordForm'])->name('client.password.reset');
     Route::post('/client/reset-password', [ClientLoginController::class, 'resetPassword'])->name('client.password.update');
 });
-Route::get('payment/course/{course}/success', [PaymentController::class, 'success'])->name('payment.success');
+
 /*
 |--------------------------------------------------------------------------
 | Client Protected Routes
 |--------------------------------------------------------------------------
 */
-// Route::get('payment/course/{course}/success', ...)->name('payment.success');
+
 // Authenticated client routes
 Route::middleware('auth:client')->group(function () {
     // Authentication
