@@ -319,6 +319,7 @@ body {
     padding: 0.75rem;
     background: white;
     transition: all 0.2s ease;
+    min-height: 44px;
 }
 
 .card-container:focus-within {
@@ -326,17 +327,8 @@ body {
     box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
 }
 
-.card-brands {
-    display: flex;
-    justify-content: flex-end;
-    gap: 0.5rem;
-    margin-top: 0.5rem;
-}
-
-.card-brand {
-    width: 32px;
-    height: 20px;
-    opacity: 0.7;
+#card-element {
+    width: 100%;
 }
 
 /* Payment Button */
@@ -358,8 +350,13 @@ body {
     gap: 0.5rem;
 }
 
-.payment-button:hover {
+.payment-button:hover:not(:disabled) {
     background: var(--primary-hover);
+}
+
+.payment-button:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
 }
 
 .payment-button svg {
@@ -503,32 +500,6 @@ body {
                         <div class="course-price">${{ number_format($course->price ?? 99, 2) }}</div>
                     </div>
                 </div>
-            @else
-                <!-- Cart Items -->
-                @if(isset($cartItems) && $cartItems->count() > 0)
-                    @foreach($cartItems as $item)
-                        <div class="course-compact">
-                            <div class="course-image">
-                                @if($item->course->thumbnail)
-                                    <img src="{{ asset('storage/' . $item->course->thumbnail) }}" alt="{{ $item->course->title }}" onerror="this.onerror=null; this.src='{{ asset('images/course-placeholder.jpg') }}';">
-                                @else
-                                    <div class="course-image-placeholder">
-                                        <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
-                                        </svg>
-                                    </div>
-                                @endif
-                            </div>
-                            <div class="course-details">
-                                <h3 class="course-title">{{ $item->course->title }}</h3>
-                                <div class="course-meta">
-                                    <span class="instructor-name">By {{ $item->course->instructor->name ?? 'Unknown' }}</span>
-                                </div>
-                                <div class="course-price">${{ number_format($item->price, 2) }}</div>
-                            </div>
-                        </div>
-                    @endforeach
-                @endif
             @endif
             
             <!-- Price Summary -->
@@ -538,30 +509,11 @@ body {
                         <span class="price-label">Course Price</span>
                         <span class="price-value">${{ number_format($course->price ?? 99, 2) }}</span>
                     </div>
-                @else
-                    <div class="price-row">
-                        <span class="price-label">Subtotal</span>
-                        <span class="price-value">${{ number_format($subtotal ?? 0, 2) }}</span>
-                    </div>
-                @endif
-                
-                @if(isset($discount) && $discount > 0)
-                    <div class="price-row">
-                        <span class="price-label">Discount</span>
-                        <span class="price-value" style="color: var(--success);">-${{ number_format($discount, 2) }}</span>
-                    </div>
-                @endif
-                
-                @if(isset($tax) && $tax > 0)
-                    <div class="price-row">
-                        <span class="price-label">Tax</span>
-                        <span class="price-value">${{ number_format($tax, 2) }}</span>
-                    </div>
                 @endif
                 
                 <div class="price-row">
                     <span class="price-label" style="font-weight: 600;">Total</span>
-                    <span class="price-total">${{ number_format($finalTotal ?? (($course->price ?? 99) - ($discount ?? 0)), 2) }}</span>
+                    <span class="price-total">${{ number_format($course->price ?? 99, 2) }}</span>
                 </div>
             </div>
         </div>
@@ -582,14 +534,8 @@ body {
             
             <form id="payment-form">
                 @csrf
-                @if(isset($course))
-                    <input type="hidden" id="course-id" value="{{ $course->id }}">
-                    <input type="hidden" id="amount" value="{{ ($course->price ?? 99) - ($discount ?? 0) }}">
-                    <input type="hidden" id="checkout-type" value="single">
-                @else
-                    <input type="hidden" id="amount" value="{{ $finalTotal ?? 0 }}">
-                    <input type="hidden" id="checkout-type" value="cart">
-                @endif
+                <input type="hidden" id="course-id" value="{{ isset($course) ? $course->id : '' }}">
+<input type="hidden" id="amount" value="{{ isset($course) ? $course->price : 99 }}">
                 
                 <div class="form-section">
                     <h3 class="section-title">
@@ -638,7 +584,6 @@ body {
                         <label class="form-label" for="card-element">Card Information</label>
                         <div class="card-container">
                             <div id="card-element"></div>
-                            
                         </div>
                         <div id="card-errors" style="color: #dc2626; font-size: 0.8rem; margin-top: 0.5rem;"></div>
                     </div>
@@ -649,7 +594,7 @@ body {
                         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
                         </svg>
-                        Pay ${{ number_format($finalTotal ?? (($course->price ?? 99) - ($discount ?? 0)), 2) }}
+                        Pay ${{ number_format($course->price ?? 99, 2) }}
                     </span>
                     <span id="loading-spinner" class="loading-spinner hidden">
                         <div class="spinner"></div>
@@ -689,7 +634,7 @@ body {
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     // Initialize Stripe
-    const stripe = Stripe('{{ config("services.stripe.key") }}');
+    const stripe = Stripe('pk_test_51Qly7lD65cvYchLPyAd1iDgAkkEZaIU2emqo1WDyhO98RQmvVSK1VGBQowEYLDpSlpcMFRzHIxLkEroC8nTaxErQ00kUZakHvc');
     const elements = stripe.elements({
         appearance: {
             theme: 'stripe',
@@ -748,7 +693,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const amount = document.getElementById('amount').value;
             const email = document.getElementById('email').value;
             const name = document.getElementById('name').value;
-            const checkoutType = document.getElementById('checkout-type').value;
+            const courseId = document.getElementById('course-id').value;
             
             // Create payment method
             const {error: methodError, paymentMethod} = await stripe.createPaymentMethod({
@@ -766,36 +711,20 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
             
-            // Determine endpoint
-            let endpoint, requestData;
-            
-            if (checkoutType === 'single') {
-                endpoint = '{{ route("payment.process") }}';
-                requestData = {
-                    course_id: document.getElementById('course-id').value,
-                    amount: parseFloat(amount),
-                    payment_method: paymentMethod.id,
-                    email: email,
-                    name: name
-                };
-            } else {
-                endpoint = '{{ route("cart.process-payment") }}';
-                requestData = {
-                    amount: parseFloat(amount),
-                    payment_method: paymentMethod.id,
-                    email: email,
-                    name: name
-                };
-            }
-            
-            // Create payment intent
-            const response = await fetch(endpoint, {
+            // Create payment intent via Laravel backend
+            const response = await fetch('{{ route("payment.process") }}', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
                 },
-                body: JSON.stringify(requestData),
+                body: JSON.stringify({
+                    course_id: courseId,
+                    amount: parseFloat(amount),
+                    payment_method: paymentMethod.id,
+                    email: email,
+                    name: name
+                }),
             });
             
             const paymentData = await response.json();
@@ -824,11 +753,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 showSuccess('Payment successful! Redirecting...');
                 
                 setTimeout(() => {
-                    if (checkoutType === 'single') {
-                        window.location.href = `{{ route('payment.success', ['course' => $course->id ?? 0]) }}?payment_intent=${paymentIntent.id}`;
-                    } else {
-                        window.location.href = `{{ route('cart.payment-success') }}?payment_intent=${paymentIntent.id}`;
-                    }
+                    @if(isset($course))
+                        window.location.href = `{{ route('payment.success', ['course' => $course->id]) }}?payment_intent=${paymentIntent.id}`;
+                    @else
+                        window.location.href = `{{ route('payment.success') }}?payment_intent=${paymentIntent.id}`;
+                    @endif
                 }, 1500);
             }
             
@@ -872,17 +801,6 @@ document.addEventListener('DOMContentLoaded', function() {
         buttonContent.classList.remove('hidden');
         loadingSpinner.classList.add('hidden');
     }
-    
-    // Fix image loading errors
-    document.querySelectorAll('img').forEach(img => {
-        img.onerror = function() {
-            this.onerror = null;
-            this.src = '{{ asset("images/course-placeholder.jpg") }}';
-            if (this.parentElement.classList.contains('course-image')) {
-                this.style.opacity = '0.7';
-            }
-        };
-    });
 });
 </script>
 @endsection

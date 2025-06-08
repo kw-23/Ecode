@@ -46,7 +46,7 @@ Route::get('/search', [CourseController::class, 'search'])->name('courses.search
 | Admin Routes (Regular User Authentication)
 |--------------------------------------------------------------------------
 */
-Route::post('/cart/process-payment', [CartController::class, 'processCartPayment'])->name('cart.process-payment');
+
 // Admin Dashboard
 Route::get('/dashboard', [DashboardController::class, 'index'])
     ->middleware(['auth', 'verified'])
@@ -152,13 +152,13 @@ Route::middleware('guest:client')->group(function () {
     Route::get('/client/reset-password/{token}', [ClientLoginController::class, 'showResetPasswordForm'])->name('client.password.reset');
     Route::post('/client/reset-password', [ClientLoginController::class, 'resetPassword'])->name('client.password.update');
 });
-
+Route::get('payment/course/{course}/success', [PaymentController::class, 'success'])->name('payment.success');
 /*
 |--------------------------------------------------------------------------
 | Client Protected Routes
 |--------------------------------------------------------------------------
 */
-
+// Route::get('payment/course/{course}/success', ...)->name('payment.success');
 // Authenticated client routes
 Route::middleware('auth:client')->group(function () {
     // Authentication
@@ -208,6 +208,7 @@ Route::middleware('auth:client')->group(function () {
     Route::prefix('payment')->name('payment.')->group(function () {
         Route::get('/course/{course}/checkout', [PaymentController::class, 'checkout'])->name('checkout');
         Route::post('/process', [PaymentController::class, 'process'])->name('process');
+        Route::post('/confirm', [PaymentController::class, 'confirmPayment'])->name('confirm');
         Route::get('/course/{course}/success', [PaymentController::class, 'success'])->name('success');
         Route::get('/course/{course}/cancel', [PaymentController::class, 'cancel'])->name('cancel');
         Route::get('/history', [PaymentController::class, 'history'])->name('history');
@@ -317,7 +318,7 @@ Route::prefix('api/v1')->name('api.')->group(function () {
 // Payment webhooks (no auth middleware needed)
 Route::prefix('webhooks')->name('webhooks.')->group(function () {
     Route::post('/stripe', [PaymentController::class, 'webhook'])->name('stripe');
-    Route::post('/paypal', [PaymentController::class, 'paypalWebhook'])->name('paypal');
+    Route::post('/payment', [PaymentController::class, 'webhook'])->name('payment');
 });
 
 /*
@@ -331,11 +332,6 @@ Route::redirect('/client', '/client/login');
 
 // Admin redirect
 Route::redirect('/admin', '/dashboard');
-
-// Fallback route for 404 errors
-Route::fallback(function () {
-    return view('errors.404');
-});
 
 /*
 |--------------------------------------------------------------------------
