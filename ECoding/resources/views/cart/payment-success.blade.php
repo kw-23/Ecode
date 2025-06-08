@@ -593,12 +593,12 @@ body {
                 
                 <div class="detail-row">
                     <span class="detail-label">Courses Purchased</span>
-                    <span class="detail-value">{{ $purchases->count() ?? 0 }} Course(s)</span>
+                    <span class="detail-value">{{ isset($purchases) ? $purchases->count() : 0 }} Course(s)</span>
                 </div>
                 
                 <div class="detail-row">
                     <span class="detail-label">Total Amount</span>
-                    <span class="detail-value">${{ number_format($purchases->sum('amount') ?? 0, 2) }}</span>
+                    <span class="detail-value">${{ isset($purchases) ? number_format($purchases->sum('amount'), 2) : '0.00' }}</span>
                 </div>
                 
                 <div class="detail-row">
@@ -606,7 +606,7 @@ body {
                     <span class="detail-value">{{ now()->format('M d, Y \a\t g:i A') }}</span>
                 </div>
                 
-                @if($paymentIntentId)
+                @if(isset($paymentIntentId) && $paymentIntentId)
                 <div class="detail-row">
                     <span class="detail-label">Transaction ID</span>
                     <span class="detail-value">
@@ -626,12 +626,12 @@ body {
                     Go to Dashboard
                 </a>
                 
-                <a href="{{ route('client.enrolled-courses') }}" class="btn btn-secondary">
+                <a href="{{ isset($purchases) && $purchases->count() === 1 ? route('client.course-detail', $purchases->first()->course_id) : route('client.courses') }}" class="btn btn-primary">
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
                     </svg>
-                    View My Courses
+                    View Course Details
                 </a>
                 
                 <a href="{{ route('client.courses') }}" class="btn btn-outline">

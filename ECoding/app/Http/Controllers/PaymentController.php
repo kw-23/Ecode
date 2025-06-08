@@ -49,6 +49,7 @@ class PaymentController extends Controller
                 'amount' => 'required|numeric|min:0',
                 'email' => 'required|email',
                 'name' => 'required|string|max:255',
+                'payment_method' => 'required|string',
             ]);
 
             $course = Course::findOrFail($request->course_id);
@@ -57,15 +58,20 @@ class PaymentController extends Controller
             // Vérifier que le montant correspond au prix du cours
             if ($request->amount != $course->price) {
                 return response()->json([
-                    'success' => false,
-                    'message' => 'Le montant ne correspond pas au prix du cours.'
+                    'error' => ['message' => 'Le montant ne correspond pas au prix du cours.']
                 ], 400);
             }
 
-            // Appeler l'API Express.js pour créer le PaymentIntent
-            $response = Http::post('http://localhost:3000/create-payment-intent', [
-                'amount' => $course->price * 100, // Stripe utilise les centimes
+            // Create Stripe PaymentIntent
+            $stripe = new \Stripe\StripeClient(config('services.stripe.secret'));
+            
+            $paymentIntent = $stripe->paymentIntents->create([
+                'amount' => $course->price * 100, // Stripe uses cents
                 'currency' => 'usd',
+                'payment_method' => $request->payment_method,
+                'confirmation_method' => 'manual',
+                'confirm' => true,
+                'return_url' => route('payment.success', $course),
                 'metadata' => [
                     'course_id' => $course->id,
                     'client_id' => $client->id,
@@ -74,46 +80,49 @@ class PaymentController extends Controller
                 ]
             ]);
 
-            if ($response->successful()) {
-                $data = $response->json();
-                
-                // Créer un enregistrement de purchase en attente
+            if ($paymentIntent->status === 'requires_action') {
+                return response()->json([
+                    'requires_action' => true,
+                    'payment_intent' => [
+                        'id' => $paymentIntent->id,
+                        'client_secret' => $paymentIntent->client_secret
+                    ]
+                ]);
+            } else if ($paymentIntent->status === 'succeeded') {
+                // Create purchase record
                 $purchase = Purchase::create([
                     'client_id' => $client->id,
                     'course_id' => $course->id,
                     'amount' => $course->price,
                     'currency' => 'usd',
-                    'payment_intent_id' => $data['client_secret'],
-                    'status' => 'pending',
+                    'payment_intent_id' => $paymentIntent->id,
+                    'status' => 'completed',
                     'payment_method' => 'stripe',
+                    'completed_at' => now(),
                 ]);
 
                 return response()->json([
                     'success' => true,
-                    'client_secret' => $data['client_secret'],
+                    'client_secret' => $paymentIntent->client_secret,
                     'purchase_id' => $purchase->id
                 ]);
             } else {
-                Log::error('Erreur lors de la création du PaymentIntent', [
-                    'response' => $response->body(),
-                    'status' => $response->status()
-                ]);
-
                 return response()->json([
-                    'success' => false,
-                    'message' => 'Erreur lors de la création du paiement.'
-                ], 500);
+                    'error' => ['message' => 'Payment failed']
+                ], 400);
             }
 
+        } catch (\Stripe\Exception\CardException $e) {
+            return response()->json([
+                'error' => ['message' => $e->getError()->message]
+            ], 400);
         } catch (\Exception $e) {
-            Log::error('Erreur dans process payment', [
-                'error' => $e->getMessage(),
+            Log::error('Payment processing error: ' . $e->getMessage(), [
                 'trace' => $e->getTraceAsString()
             ]);
 
             return response()->json([
-                'success' => false,
-                'message' => 'Une erreur est survenue lors du traitement du paiement.'
+                'error' => ['message' => 'Une erreur est survenue lors du traitement du paiement.']
             ], 500);
         }
     }
@@ -138,21 +147,13 @@ class PaymentController extends Controller
                 'completed_at' => now(),
             ]);
 
-            // Enregistrer l'inscription du client au cours
-            $client = Auth::guard('client')->user();
-            $course = $purchase->course;
-
-            // Ajouter le cours aux cours inscrits du client (si vous avez une table pivot)
-            // $client->enrolledCourses()->attach($course->id);
-
             return response()->json([
                 'success' => true,
-                'redirect_url' => route('payment.success', $course)
+                'redirect_url' => route('payment.success', $purchase->course)
             ]);
 
         } catch (\Exception $e) {
-            Log::error('Erreur lors de la confirmation du paiement', [
-                'error' => $e->getMessage(),
+            Log::error('Payment confirmation error: ' . $e->getMessage(), [
                 'request' => $request->all()
             ]);
 
@@ -204,17 +205,18 @@ class PaymentController extends Controller
     {
         $payload = $request->getContent();
         $sig_header = $request->header('Stripe-Signature');
-        $endpoint_secret = env('STRIPE_WEBHOOK_SECRET');
+        $endpoint_secret = config('services.stripe.webhook_secret');
 
         try {
-            // Vérifier la signature du webhook (optionnel mais recommandé)
-            // $event = \Stripe\Webhook::constructEvent($payload, $sig_header, $endpoint_secret);
+            if ($endpoint_secret) {
+                $event = \Stripe\Webhook::constructEvent($payload, $sig_header, $endpoint_secret);
+            } else {
+                $event = json_decode($payload, true);
+            }
             
-            $event = json_decode($payload, true);
-            
-            Log::info('Webhook reçu', ['event' => $event]);
+            Log::info('Webhook received', ['event_type' => $event['type']]);
 
-            // Traiter les différents types d'événements
+            // Handle different event types
             switch ($event['type']) {
                 case 'payment_intent.succeeded':
                     $paymentIntent = $event['data']['object'];
@@ -227,13 +229,13 @@ class PaymentController extends Controller
                     break;
                     
                 default:
-                    Log::info('Type d\'événement non géré: ' . $event['type']);
+                    Log::info('Unhandled event type: ' . $event['type']);
             }
 
             return response()->json(['status' => 'success']);
 
         } catch (\Exception $e) {
-            Log::error('Erreur webhook', ['error' => $e->getMessage()]);
+            Log::error('Webhook error: ' . $e->getMessage());
             return response()->json(['error' => 'Webhook error'], 400);
         }
     }
@@ -243,7 +245,7 @@ class PaymentController extends Controller
      */
     private function handlePaymentSuccess($paymentIntent)
     {
-        $purchase = Purchase::where('payment_intent_id', 'like', '%' . $paymentIntent['id'] . '%')
+        $purchase = Purchase::where('payment_intent_id', $paymentIntent['id'])
             ->first();
 
         if ($purchase && $purchase->status !== 'completed') {
@@ -252,7 +254,7 @@ class PaymentController extends Controller
                 'completed_at' => now(),
             ]);
 
-            Log::info('Paiement confirmé via webhook', ['purchase_id' => $purchase->id]);
+            Log::info('Payment confirmed via webhook', ['purchase_id' => $purchase->id]);
         }
     }
 
@@ -261,7 +263,7 @@ class PaymentController extends Controller
      */
     private function handlePaymentFailure($paymentIntent)
     {
-        $purchase = Purchase::where('payment_intent_id', 'like', '%' . $paymentIntent['id'] . '%')
+        $purchase = Purchase::where('payment_intent_id', $paymentIntent['id'])
             ->first();
 
         if ($purchase) {
@@ -269,7 +271,7 @@ class PaymentController extends Controller
                 'status' => 'failed',
             ]);
 
-            Log::info('Paiement échoué via webhook', ['purchase_id' => $purchase->id]);
+            Log::info('Payment failed via webhook', ['purchase_id' => $purchase->id]);
         }
     }
 
@@ -325,5 +327,50 @@ class PaymentController extends Controller
             ->sum('amount');
 
         return view('admin.reports.revenue', compact('totalRevenue', 'monthlyRevenue'));
+    }
+
+    /**
+     * Show cart payment success page - FIXED METHOD
+     */
+    public function cartPaymentSuccess(Request $request)
+    {
+        try {
+            $client = Auth::guard('client')->user();
+
+            if (!$client) {
+                return redirect()->route('client.login')
+                    ->with('error', 'Please log in to view your purchases.');
+            }
+
+            // Get recent completed purchases for this client
+            $purchases = Purchase::where('client_id', $client->id)
+                ->where('status', 'completed')
+                ->whereNotNull('course_id')
+                ->with(['course', 'course.instructor'])
+                ->orderBy('completed_at', 'desc')
+                ->limit(10) // Get last 10 purchases
+                ->get();
+
+            if ($purchases->isEmpty()) {
+                return redirect()->route('client.courses')
+                    ->with('error', 'No recent purchases found.');
+            }
+
+            $paymentIntentId = $request->query('payment_intent', null);
+            return view('cart.payment-success', [
+                'purchases' => $purchases,
+                'paymentIntentId' => $paymentIntentId
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Cart payment success processing error: ' . $e->getMessage(), [
+                'user_id' => Auth::guard('client')->id(),
+                'request' => $request->all(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return redirect()->route('client.dashboard')
+                ->with('error', 'There was an error processing your request. Please contact support.');
+        }
     }
 }

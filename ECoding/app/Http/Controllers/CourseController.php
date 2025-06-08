@@ -5,9 +5,13 @@ namespace App\Http\Controllers;
 use App\Models\Course;
 use App\Models\CourseCategory;
 use App\Models\CourseReview;
+use App\Models\Purchase;
+use App\Models\Cart;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class CourseController extends Controller
@@ -115,10 +119,6 @@ class CourseController extends Controller
         return view('courses.all', compact('courses', 'categories'));
     }
 
-    /**
-     * Show all courses (for admin or general listing).
-     */
-   
     public function create()
     {
         $categories = CourseCategory::where('is_active', true)->get();
@@ -153,9 +153,8 @@ class CourseController extends Controller
             $validated['tags'] = explode(',', $validated['tags']);
         }
         
-        // Handle cover image upload - Modifié pour utiliser public/images
+        // Handle cover image upload
         if ($request->hasFile('cover_image')) {
-            // Créer le dossier s'il n'existe pas
             $imagesPath = public_path('images');
             if (!File::exists($imagesPath)) {
                 File::makeDirectory($imagesPath, 0755, true);
@@ -168,9 +167,8 @@ class CourseController extends Controller
             $validated['cover_image'] = 'images/' . $imageName;
         }
         
-        // Handle PDF file upload - Modifié pour utiliser public/pdfs
+        // Handle PDF file upload
         if ($request->hasFile('pdf_file')) {
-            // Créer le dossier s'il n'existe pas
             $pdfsPath = public_path('pdfs');
             if (!File::exists($pdfsPath)) {
                 File::makeDirectory($pdfsPath, 0755, true);
@@ -198,7 +196,7 @@ class CourseController extends Controller
     }
 
     /**
-     * Display the specified course.
+     * Display the specified course with enhanced purchase logic.
      */
     public function show(Course $course)
     {
@@ -210,7 +208,6 @@ class CourseController extends Controller
                           ->where('is_approved', true)
                           ->orderBy('created_at', 'desc')
                           ->get();
-                           
 
         // Calculate average rating
         $averageRating = $reviews->avg('rating') ?? 0;
@@ -223,18 +220,9 @@ class CourseController extends Controller
                                  ->first();
         }
 
-        // Check if client is enrolled
-        $isEnrolled = false;
-        if (Auth::guard('client')->check()) {
-            try {
-                $isEnrolled = \DB::table('course_enrollments')
-                    ->where('client_id', Auth::guard('client')->id())
-                    ->where('course_id', $course->id)
-                    ->exists();
-            } catch (\Exception $e) {
-                $isEnrolled = false;
-            }
-        }
+        // Enhanced purchase status checking
+        $purchaseStatus = $this->getPurchaseStatus($course->id);
+        $isEnrolled = $purchaseStatus['status'] === 'purchased';
 
         // Get related courses
         $relatedCourses = Course::where('status', 'published')
@@ -243,7 +231,189 @@ class CourseController extends Controller
             ->take(3)
             ->get();
         
-        return view('client.course-detail', compact('course', 'reviews', 'averageRating', 'userReview', 'isEnrolled', 'relatedCourses'));
+        return view('client.course-detail', compact(
+            'course', 
+            'reviews', 
+            'averageRating', 
+            'userReview', 
+            'isEnrolled', 
+            'relatedCourses',
+            'purchaseStatus'
+        ));
+    }
+
+    /**
+     * Get comprehensive purchase status for a course
+     */
+    private function getPurchaseStatus($courseId)
+    {
+        if (!Auth::guard('client')->check()) {
+            return [
+                'status' => 'not_authenticated',
+                'message' => 'Please login to purchase this course',
+                'purchase' => null,
+                'is_in_cart' => false
+            ];
+        }
+
+        $clientId = Auth::guard('client')->id();
+        
+        // Check for completed purchase
+        $completedPurchase = Purchase::where('client_id', $clientId)
+            ->where('course_id', $courseId)
+            ->where('status', 'completed')
+            ->first();
+
+        if ($completedPurchase) {
+            return [
+                'status' => 'purchased',
+                'message' => 'Course purchased successfully',
+                'purchase' => $completedPurchase,
+                'purchase_date' => $completedPurchase->created_at,
+                'is_in_cart' => false
+            ];
+        }
+
+        // Check for pending purchase
+        $pendingPurchase = Purchase::where('client_id', $clientId)
+            ->where('course_id', $courseId)
+            ->where('status', 'pending')
+            ->first();
+
+        if ($pendingPurchase) {
+            return [
+                'status' => 'pending',
+                'message' => 'Payment is being processed',
+                'purchase' => $pendingPurchase,
+                'created_at' => $pendingPurchase->created_at,
+                'is_in_cart' => false
+            ];
+        }
+
+        // Check if in cart
+        $isInCart = false;
+        if (class_exists('App\Models\Cart')) {
+            $isInCart = Cart::where('client_id', $clientId)
+                ->where('course_id', $courseId)
+                ->exists();
+        }
+
+        // Check for failed purchase
+        $failedPurchase = Purchase::where('client_id', $clientId)
+            ->where('course_id', $courseId)
+            ->where('status', 'failed')
+            ->latest()
+            ->first();
+
+        if ($failedPurchase) {
+            return [
+                'status' => 'failed',
+                'message' => 'Previous payment failed. Please try again.',
+                'purchase' => $failedPurchase,
+                'failed_at' => $failedPurchase->updated_at,
+                'is_in_cart' => $isInCart
+            ];
+        }
+
+        return [
+            'status' => 'not_purchased',
+            'message' => 'Course not purchased',
+            'purchase' => null,
+            'is_in_cart' => $isInCart
+        ];
+    }
+
+    /**
+     * AJAX endpoint to check enrollment status
+     */
+    public function checkEnrollment(Course $course)
+    {
+        if (!Auth::guard('client')->check()) {
+            return response()->json([
+                'purchased' => false,
+                'status' => 'not_authenticated'
+            ]);
+        }
+
+        $purchaseStatus = $this->getPurchaseStatus($course->id);
+        
+        return response()->json([
+            'purchased' => $purchaseStatus['status'] === 'purchased',
+            'status' => $purchaseStatus['status'],
+            'message' => $purchaseStatus['message'],
+            'has_download' => $course->pdf_file_path && file_exists(public_path($course->pdf_file_path))
+        ]);
+    }
+
+    /**
+     * Enhanced download method with better security
+     */
+    public function download(Course $course)
+    {
+        // Check authentication
+        if (!Auth::guard('client')->check()) {
+            return redirect()->route('client.login')
+                ->with('error', 'Please login to download course materials.');
+        }
+
+        // Check purchase status
+        $purchaseStatus = $this->getPurchaseStatus($course->id);
+        
+        if ($purchaseStatus['status'] !== 'purchased') {
+            return redirect()->back()
+                ->with('error', 'You must purchase this course before downloading materials.');
+        }
+
+        // Check if file exists
+        if (!$course->pdf_file_path) {
+            return redirect()->back()
+                ->with('error', 'No downloadable file available for this course.');
+        }
+
+        $filePath = public_path($course->pdf_file_path);
+        
+        if (!File::exists($filePath)) {
+            return redirect()->back()
+                ->with('error', 'Course file not found. Please contact support.');
+        }
+
+        // Log the download
+        $this->logDownload($course, $purchaseStatus['purchase']);
+
+        // Increment download count
+        $course->increment('downloads_count');
+
+        // Generate secure filename
+        $filename = Str::slug($course->title) . '_' . date('Y-m-d') . '.pdf';
+
+        return response()->download($filePath, $filename, [
+            'Content-Type' => 'application/pdf',
+            'Cache-Control' => 'no-cache, no-store, must-revalidate',
+            'Pragma' => 'no-cache',
+            'Expires' => '0'
+        ]);
+    }
+
+    /**
+     * Log download activity
+     */
+    private function logDownload($course, $purchase)
+    {
+        try {
+            DB::table('download_logs')->insert([
+                'client_id' => Auth::guard('client')->id(),
+                'course_id' => $course->id,
+                'purchase_id' => $purchase ? $purchase->id : null,
+                'ip_address' => request()->ip(),
+                'user_agent' => request()->userAgent(),
+                'downloaded_at' => now(),
+                'created_at' => now(),
+                'updated_at' => now()
+            ]);
+        } catch (\Exception $e) {
+            // Log error but don't prevent download
+            Log::error('Failed to log download: ' . $e->getMessage());
+        }
     }
 
     /**
@@ -251,11 +421,7 @@ class CourseController extends Controller
      */
     public function edit(Course $course)
     {
-        // Check if the authenticated user is the instructor of this course
-        
-        
         $categories = CourseCategory::where('is_active', true)->get();
-        
         return view('courses.edit', compact('course', 'categories'));
     }
 
@@ -264,9 +430,6 @@ class CourseController extends Controller
      */
     public function update(Request $request, Course $course)
     {
-        // Check if the authenticated user is the instructor of this course
-        
-        
         $validated = $request->validate([
             'title' => 'required|string|max:255',
             'description' => 'required|string',
@@ -292,14 +455,13 @@ class CourseController extends Controller
             $validated['tags'] = explode(',', $validated['tags']);
         }
         
-        // Handle cover image upload - Modifié pour utiliser public/images
+        // Handle cover image upload
         if ($request->hasFile('cover_image')) {
             // Delete old image if exists
             if ($course->cover_image && File::exists(public_path($course->cover_image))) {
                 File::delete(public_path($course->cover_image));
             }
             
-            // Créer le dossier s'il n'existe pas
             $imagesPath = public_path('images');
             if (!File::exists($imagesPath)) {
                 File::makeDirectory($imagesPath, 0755, true);
@@ -312,14 +474,13 @@ class CourseController extends Controller
             $validated['cover_image'] = 'images/' . $imageName;
         }
         
-        // Handle PDF file upload - Modifié pour utiliser public/pdfs
+        // Handle PDF file upload
         if ($request->hasFile('pdf_file')) {
             // Delete old file if exists
             if ($course->pdf_file_path && File::exists(public_path($course->pdf_file_path))) {
                 File::delete(public_path($course->pdf_file_path));
             }
             
-            // Créer le dossier s'il n'existe pas
             $pdfsPath = public_path('pdfs');
             if (!File::exists($pdfsPath)) {
                 File::makeDirectory($pdfsPath, 0755, true);
@@ -348,9 +509,6 @@ class CourseController extends Controller
      */
     public function destroy(Course $course)
     {
-        // Check if the authenticated user is the instructor of this course
-        
-        
         // Delete associated files
         if ($course->cover_image && File::exists(public_path($course->cover_image))) {
             File::delete(public_path($course->cover_image));
@@ -368,27 +526,6 @@ class CourseController extends Controller
         
         return redirect()->route('courses.index')
             ->with('success', 'Course deleted successfully!');
-    }
-
-    /**
-     * Download course PDF file
-     */
-    public function download(Course $course)
-    {
-        if (!$course->pdf_file_path) {
-            return redirect()->back()->with('error', 'No downloadable file available for this course.');
-        }
-
-        $filePath = public_path($course->pdf_file_path);
-        
-        if (!File::exists($filePath)) {
-            return redirect()->back()->with('error', 'File not found.');
-        }
-
-        // Increment download count
-        $course->increment('downloads_count');
-
-        return response()->download($filePath, $course->title . '.pdf');
     }
 
     /**
