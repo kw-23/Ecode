@@ -19,8 +19,8 @@ class Purchase extends Model
     ];
 
     protected $casts = [
-        'amount' => 'decimal:2',
         'purchased_at' => 'datetime',
+        'amount' => 'decimal:2',
     ];
 
     public function client()
@@ -31,5 +31,17 @@ class Purchase extends Model
     public function course()
     {
         return $this->belongsTo(Course::class);
+    }
+
+    // Scope for completed purchases
+    public function scopeCompleted($query)
+    {
+        return $query->where('status', 'completed');
+    }
+
+    // Check if purchase is completed
+    public function isCompleted()
+    {
+        return $this->status === 'completed';
     }
 }

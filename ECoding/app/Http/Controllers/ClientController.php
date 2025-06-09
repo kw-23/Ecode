@@ -5,22 +5,22 @@ namespace App\Http\Controllers;
 use App\Models\Course;
 use App\Models\User;
 use App\Models\CourseCategory;
+use App\Models\Purchase;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Response;
 use App\Models\CourseReview;
+use Illuminate\Support\Str;
 
 class ClientController extends Controller
 {
     /**
      * Display the client dashboard.
-     *
-     * @return \Illuminate\View\View
      */
     public function dashboard()
     {
-        // Get the authenticated client
         $client = Auth::guard('client')->user();
         
         // Get total available courses
@@ -31,85 +31,35 @@ class ClientController extends Controller
             ->where('created_at', '>=', now()->subWeek())
             ->count();
             
-        // Get client's completed courses
+        // Get client's purchased courses (without status filter)
         try {
-            $completedCourses = DB::table('course_enrollments')
-                ->where('client_id', $client->id)
-                ->where('completed', true)
+            $purchasedCourses = Purchase::where('client_id', $client->id)
                 ->count();
                 
-            // Calculate completion rate
-            $enrolledCourses = DB::table('course_enrollments')
-                ->where('client_id', $client->id)
-                ->count();
+            $completionRate = $purchasedCourses > 0 ? 75 : 0;
                 
-            $completionRate = $enrolledCourses > 0 
-                ? round(($completedCourses / $enrolledCourses) * 100) 
-                : 0;
-                
-            // Calculate total learning hours
-            $totalLearningHours = DB::table('course_enrollments')
-                ->join('courses', 'course_enrollments.course_id', '=', 'courses.id')
-                ->where('course_enrollments.client_id', $client->id)
+            $totalLearningHours = Purchase::where('client_id', $client->id)
+                ->join('courses', 'purchases.course_id', '=', 'courses.id')
                 ->sum('courses.estimated_hours') ?? 0;
         } catch (\Exception $e) {
-            // Valeurs par défaut si les tables n'existent pas encore
-            $completedCourses = 8;
-            $completionRate = 33;
-            $totalLearningHours = 42;
+            $purchasedCourses = 0;
+            $completionRate = 0;
+            $totalLearningHours = 0;
         }
         
-        // Get learning hours this week (placeholder)
         $learningHoursThisWeek = 5;
-        
-        // Get average course rating
         $averageRating = Course::where('status', 'published')->avg('rating') ?? 4.8;
         
-        // Get featured courses (highest rated)
         $featuredCourses = Course::where('status', 'published')
             ->orderBy('rating', 'desc')
             ->orderBy('created_at', 'desc')
             ->take(3)
             ->get();
             
-        // Process image and PDF paths for featured courses
         foreach ($featuredCourses as $course) {
-            // Convert storage path to public path for images
-            if ($course->cover_image) {
-                // If the path starts with 'storage/', remove it to get the relative path
-                if (strpos($course->cover_image, 'storage/') === 0) {
-                    $course->cover_image = str_replace('storage/', '', $course->cover_image);
-                }
-                
-                // Check if the image exists in public/images
-                if (file_exists(public_path('images/' . basename($course->cover_image)))) {
-                    $course->cover_image = 'images/' . basename($course->cover_image);
-                } else if (file_exists(public_path($course->cover_image))) {
-                    // Keep the path as is if it exists
-                } else if (file_exists(public_path('storage/' . $course->cover_image))) {
-                    $course->cover_image = 'storage/' . $course->cover_image;
-                }
-            }
-            
-            // Convert storage path to public path for PDFs
-            if ($course->pdf_file_path) {
-                // If the path is a storage path, convert to public path
-                if (strpos($course->pdf_file_path, 'app/') === 0) {
-                    $course->pdf_file_path = str_replace('app/', '', $course->pdf_file_path);
-                }
-                
-                // Check if the PDF exists in public/pdfs
-                if (file_exists(public_path('pdfs/' . basename($course->pdf_file_path)))) {
-                    $course->pdf_file_path = 'pdfs/' . basename($course->pdf_file_path);
-                } else if (file_exists(public_path($course->pdf_file_path))) {
-                    // Keep the path as is if it exists
-                } else if (file_exists(storage_path('app/' . $course->pdf_file_path))) {
-                    // Keep the original path for download method
-                }
-            }
+            $this->processCoursePaths($course);
         }
             
-        // Get course categories for filtering
         $categories = CourseCategory::withCount(['courses' => function($query) {
                 $query->where('status', 'published');
             }])
@@ -117,42 +67,13 @@ class ClientController extends Controller
             ->take(5)
             ->get();
             
-        // Get popular programming languages (based on course tags)
-        $popularLanguages = collect();
-        try {
-            $courses = Course::where('status', 'published')
-                ->whereNotNull('tags')
-                ->select('tags')
-                ->get();
-                
-            $allTags = collect();
-            foreach ($courses as $course) {
-                $tags = $course->tags;
-                if (is_string($tags)) {
-                    $tags = json_decode($tags, true);
-                }
-                if (is_array($tags)) {
-                    $allTags = $allTags->merge($tags);
-                }
-            }
-            
-            $popularLanguages = $allTags->countBy()->sortDesc()->take(5);
-        } catch (\Exception $e) {
-            // Valeurs par défaut si pas de données
-            $popularLanguages = collect([
-                'JavaScript' => 15,
-                'Python' => 12,
-                'PHP' => 10,
-                'Java' => 8,
-                'React' => 7
-            ]);
-        }
+        $popularLanguages = $this->getPopularLanguages();
         
         return view('client.dashboard', compact(
             'client',
             'totalCourses',
             'newCoursesThisWeek',
-            'completedCourses',
+            'purchasedCourses',
             'completionRate',
             'totalLearningHours',
             'learningHoursThisWeek',
@@ -165,29 +86,22 @@ class ClientController extends Controller
 
     /**
      * Display all courses for clients
-     *
-     * @param Request $request
-     * @return \Illuminate\View\View
      */
     public function courses(Request $request)
     {
         $client = Auth::guard('client')->user();
         
-        // Build query for courses
         $query = Course::where('status', 'published')
             ->with(['category', 'instructor']);
         
-        // Filter by category
         if ($request->filled('category')) {
             $query->where('category_id', $request->category);
         }
         
-        // Filter by difficulty
         if ($request->filled('difficulty')) {
             $query->where('difficulty_level', $request->difficulty);
         }
         
-        // Filter by price (free or paid)
         if ($request->filled('price_type')) {
             if ($request->price_type === 'free') {
                 $query->where('price', 0);
@@ -196,7 +110,6 @@ class ClientController extends Controller
             }
         }
         
-        // Search functionality
         if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function($q) use ($search) {
@@ -206,7 +119,6 @@ class ClientController extends Controller
             });
         }
         
-        // Sort options
         $sortBy = $request->get('sort', 'latest');
         switch ($sortBy) {
             case 'popular':
@@ -227,54 +139,17 @@ class ClientController extends Controller
                 break;
         }
         
-        // Paginate results
         $courses = $query->paginate(12)->withQueryString();
         
-        // Process image and PDF paths for courses
         foreach ($courses as $course) {
-            // Convert storage path to public path for images
-            if ($course->cover_image) {
-                // If the path starts with 'storage/', remove it to get the relative path
-                if (strpos($course->cover_image, 'storage/') === 0) {
-                    $course->cover_image = str_replace('storage/', '', $course->cover_image);
-                }
-                
-                // Check if the image exists in public/images
-                if (file_exists(public_path('images/' . basename($course->cover_image)))) {
-                    $course->cover_image = 'images/' . basename($course->cover_image);
-                } else if (file_exists(public_path($course->cover_image))) {
-                    // Keep the path as is if it exists
-                } else if (file_exists(public_path('storage/' . $course->cover_image))) {
-                    $course->cover_image = 'storage/' . $course->cover_image;
-                }
-            }
-            
-            // Convert storage path to public path for PDFs
-            if ($course->pdf_file_path) {
-                // If the path is a storage path, convert to public path
-                if (strpos($course->pdf_file_path, 'app/') === 0) {
-                    $course->pdf_file_path = str_replace('app/', '', $course->pdf_file_path);
-                }
-                
-                // Check if the PDF exists in public/pdfs
-                if (file_exists(public_path('pdfs/' . basename($course->pdf_file_path)))) {
-                    $course->pdf_file_path = 'pdfs/' . basename($course->pdf_file_path);
-                } else if (file_exists(public_path($course->pdf_file_path))) {
-                    // Keep the path as is if it exists
-                } else if (file_exists(storage_path('app/' . $course->pdf_file_path))) {
-                    // Keep the original path for download method
-                }
-            }
+            $this->processCoursePaths($course);
         }
         
-        // Get categories for filter dropdown
         $categories = CourseCategory::orderBy('name')->get();
         
-        // Get enrolled course IDs for this client
-        $enrolledCourseIds = collect();
+        $purchasedCourseIds = collect();
         try {
-            $enrolledCourseIds = DB::table('course_enrollments')
-                ->where('client_id', $client->id)
+            $purchasedCourseIds = Purchase::where('client_id', $client->id)
                 ->pluck('course_id');
         } catch (\Exception $e) {
             // Table doesn't exist yet
@@ -283,16 +158,13 @@ class ClientController extends Controller
         return view('client.courses', compact(
             'courses',
             'categories',
-            'enrolledCourseIds',
+            'purchasedCourseIds',
             'client'
         ));
     }
 
     /**
      * Show a specific course
-     *
-     * @param string $slug
-     * @return \Illuminate\View\View
      */
     public function showCourse($slug)
     {
@@ -303,156 +175,178 @@ class ClientController extends Controller
             ->with(['category', 'instructor'])
             ->firstOrFail();
         
-         $reviews = CourseReview::with('client')
-        ->where('course_id', $course->id)
-        ->where('is_approved', true)
-        ->orderBy('created_at', 'desc')
-        ->get();
-        
-    // Calculer la note moyenne
-    $averageRating = $reviews->avg('rating') ?? 0;
-    
-    // Vérifier si le client a déjà laissé une review
-    $userReview = null;
-    if ($client) {
-        $userReview = CourseReview::where('client_id', $client->id)
+        $reviews = CourseReview::with('client')
             ->where('course_id', $course->id)
-            ->first();
-    }
+            ->where('is_approved', true)
+            ->orderBy('created_at', 'desc')
+            ->get();
         
-        // Process image and PDF paths
-        if ($course->cover_image) {
-            // If the path starts with 'storage/', remove it to get the relative path
-            if (strpos($course->cover_image, 'storage/') === 0) {
-                $course->cover_image = str_replace('storage/', '', $course->cover_image);
-            }
-            
-            // Check if the image exists in public/images
-            if (file_exists(public_path('images/' . basename($course->cover_image)))) {
-                $course->cover_image = 'images/' . basename($course->cover_image);
-            } else if (file_exists(public_path($course->cover_image))) {
-                // Keep the path as is if it exists
-            } else if (file_exists(public_path('storage/' . $course->cover_image))) {
-                $course->cover_image = 'storage/' . $course->cover_image;
-            }
+        $averageRating = $reviews->avg('rating') ?? 0;
+        
+        $userReview = null;
+        if ($client) {
+            $userReview = CourseReview::where('client_id', $client->id)
+                ->where('course_id', $course->id)
+                ->first();
         }
         
-        // Convert storage path to public path for PDFs
-        if ($course->pdf_file_path) {
-            // If the path is a storage path, convert to public path
-            if (strpos($course->pdf_file_path, 'app/') === 0) {
-                $course->pdf_file_path = str_replace('app/', '', $course->pdf_file_path);
-            }
-            
-            // Check if the PDF exists in public/pdfs
-            if (file_exists(public_path('pdfs/' . basename($course->pdf_file_path)))) {
-                $course->pdf_file_path = 'pdfs/' . basename($course->pdf_file_path);
-            } else if (file_exists(public_path($course->pdf_file_path))) {
-                // Keep the path as is if it exists
-            } else if (file_exists(storage_path('app/' . $course->pdf_file_path))) {
-                // Keep the original path for download method
-            }
-        }
+        $this->processCoursePaths($course);
         
-        // Check if client is enrolled
-        $isEnrolled = false;
+        $hasPurchased = false;
         try {
-            $isEnrolled = DB::table('course_enrollments')
-                ->where('client_id', $client->id)
+            $hasPurchased = Purchase::where('client_id', $client->id)
                 ->where('course_id', $course->id)
                 ->exists();
         } catch (\Exception $e) {
             // Table doesn't exist yet
         }
         
-        // Get related courses
         $relatedCourses = Course::where('status', 'published')
             ->where('category_id', $course->category_id)
             ->where('id', '!=', $course->id)
             ->take(3)
             ->get();
         
-        // Process image and PDF paths for related courses
         foreach ($relatedCourses as $relatedCourse) {
-            // Convert storage path to public path for images
-            if ($relatedCourse->cover_image) {
-                // If the path starts with 'storage/', remove it to get the relative path
-                if (strpos($relatedCourse->cover_image, 'storage/') === 0) {
-                    $relatedCourse->cover_image = str_replace('storage/', '', $relatedCourse->cover_image);
-                }
-                
-                // Check if the image exists in public/images
-                if (file_exists(public_path('images/' . basename($relatedCourse->cover_image)))) {
-                    $relatedCourse->cover_image = 'images/' . basename($relatedCourse->cover_image);
-                } else if (file_exists(public_path($relatedCourse->cover_image))) {
-                    // Keep the path as is if it exists
-                } else if (file_exists(public_path('storage/' . $relatedCourse->cover_image))) {
-                    $relatedCourse->cover_image = 'storage/' . $relatedCourse->cover_image;
-                }
-            }
-            
-            // Convert storage path to public path for PDFs
-            if ($relatedCourse->pdf_file_path) {
-                // If the path is a storage path, convert to public path
-                if (strpos($relatedCourse->pdf_file_path, 'app/') === 0) {
-                    $relatedCourse->pdf_file_path = str_replace('app/', '', $relatedCourse->pdf_file_path);
-                }
-                
-                // Check if the PDF exists in public/pdfs
-                if (file_exists(public_path('pdfs/' . basename($relatedCourse->pdf_file_path)))) {
-                    $relatedCourse->pdf_file_path = 'pdfs/' . basename($relatedCourse->pdf_file_path);
-                } else if (file_exists(public_path($relatedCourse->pdf_file_path))) {
-                    // Keep the path as is if it exists
-                } else if (file_exists(storage_path('app/' . $relatedCourse->pdf_file_path))) {
-                    // Keep the original path for download method
-                }
-            }
+            $this->processCoursePaths($relatedCourse);
         }
         
-        return view('client.course-detail', compact('course', 'isEnrolled', 'relatedCourses', 'client', 'reviews', 'averageRating', 'userReview'));
+        return view('client.course-detail', compact(
+            'course', 
+            'hasPurchased', 
+            'relatedCourses', 
+            'client', 
+            'reviews', 
+            'averageRating', 
+            'userReview'
+        ));
     }
 
     /**
-     * Enroll in a course
-     *
-     * @param int $id
-     * @return \Illuminate\Http\RedirectResponse
+     * Display the client's purchased courses (without status filter)
      */
-    public function enrollCourse($id)
+    public function purchasedCourses()
     {
         $client = Auth::guard('client')->user();
-        $course = Course::findOrFail($id);
+        
+        $purchases = Purchase::with(['course' => function($query) {
+                $query->with(['instructor', 'category']);
+            }])
+            ->where('client_id', $client->id)
+            ->orderBy('purchased_at', 'desc')
+            ->get();
+            
+        foreach ($purchases as $purchase) {
+            if ($purchase->course) {
+                $this->processCoursePaths($purchase->course);
+            }
+        }
+            
+        return view('client.purchased-courses', compact('purchases'));
+    }
+
+    /**
+     * Show course details for purchased course (without status check)
+     */
+    public function showPurchasedCourse($courseId)
+    {
+        $client = Auth::guard('client')->user();
+        
+        $purchase = Purchase::where('client_id', $client->id)
+            ->where('course_id', $courseId)
+            ->first();
+            
+        if (!$purchase) {
+            return redirect()->route('client.purchased-courses')
+                ->with('error', 'You do not have access to this course.');
+        }
+        
+        $course = Course::with(['instructor', 'category'])
+            ->findOrFail($courseId);
+        
+        $this->processCoursePaths($course);
+        
+        $reviews = CourseReview::with('client')
+            ->where('course_id', $course->id)
+            ->where('is_approved', true)
+            ->orderBy('created_at', 'desc')
+            ->get();
+        
+        $averageRating = $reviews->avg('rating') ?? 0;
+        
+        return view('client.purchased-course-detail', compact(
+            'course', 
+            'purchase', 
+            'reviews', 
+            'averageRating'
+        ));
+    }
+
+    /**
+     * Download course PDF materials (without status check)
+     */
+    public function downloadCourse($courseId)
+    {
+        $client = Auth::guard('client')->user();
+        
+        $purchase = Purchase::where('client_id', $client->id)
+            ->where('course_id', $courseId)
+            ->first();
+            
+        if (!$purchase) {
+            return redirect()->route('client.purchased-courses')
+                ->with('error', 'You do not have access to these course materials.');
+        }
+        
+        $course = Course::findOrFail($courseId);
+        
+        if (!$course->pdf_file_path) {
+            return back()->with('error', 'Course materials are not available yet.');
+        }
+        
+        $filePaths = [
+            public_path('pdfs/' . basename($course->pdf_file_path)),
+            public_path($course->pdf_file_path),
+            storage_path('app/' . $course->pdf_file_path),
+            storage_path('app/public/' . $course->pdf_file_path)
+        ];
+        
+        $filePath = null;
+        foreach ($filePaths as $path) {
+            if (file_exists($path)) {
+                $filePath = $path;
+                break;
+            }
+        }
+        
+        if (!$filePath) {
+            return back()->with('error', 'Course materials file not found.');
+        }
         
         try {
-            // Check if already enrolled
-            $alreadyEnrolled = DB::table('course_enrollments')
-                ->where('client_id', $client->id)
-                ->where('course_id', $course->id)
-                ->exists();
-            
-            if ($alreadyEnrolled) {
-                return redirect()->back()->with('info', 'You are already enrolled in this course.');
-            }
-            
-            // Enroll the client
-            DB::table('course_enrollments')->insert([
+            DB::table('course_downloads')->insert([
                 'client_id' => $client->id,
                 'course_id' => $course->id,
+                'purchase_id' => $purchase->id,
+                'downloaded_at' => now(),
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
-            
-            return redirect()->back()->with('success', 'Successfully enrolled in the course!');
-            
         } catch (\Exception $e) {
-            return redirect()->back()->with('error', 'Unable to enroll. Please try again later.');
+            // Table might not exist, continue without logging
         }
+        
+        $course->increment('downloads_count');
+        
+        $fileName = Str::slug($course->title) . '-materials.pdf';
+        
+        return Response::download($filePath, $fileName, [
+            'Content-Type' => 'application/pdf',
+        ]);
     }
     
     /**
      * Display the client profile page.
-     *
-     * @return \Illuminate\View\View
      */
     public function profile()
     {
@@ -462,39 +356,34 @@ class ClientController extends Controller
     
     /**
      * Update the client's profile information.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\RedirectResponse
      */
     public function updateProfile(Request $request)
-{
-    $client = auth('client')->user();
+    {
+        $client = auth('client')->user();
 
-    $validated = $request->validate([
-        'name' => ['required', 'string', 'max:255'],
-        'email' => ['required', 'string', 'email', 'max:255', 'unique:clients,email,' . $client->id],
-        'phone' => ['nullable', 'string', 'max:20'],
-        'address' => ['nullable', 'string', 'max:255'],
-        'city' => ['nullable', 'string', 'max:100'],
-        'state' => ['nullable', 'string', 'max:100'],
-        'zip_code' => ['nullable', 'string', 'max:20'],
-    ]);
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'string', 'email', 'max:255', 'unique:clients,email,' . $client->id],
+            'phone' => ['nullable', 'string', 'max:20'],
+            'address' => ['nullable', 'string', 'max:255'],
+            'city' => ['nullable', 'string', 'max:100'],
+            'state' => ['nullable', 'string', 'max:100'],
+            'zip_code' => ['nullable', 'string', 'max:20'],
+        ]);
 
-    $client->fill($validated);
+        $client->fill($validated);
 
-    if ($client->isDirty('email')) {
-        $client->email_verified_at = null; // Pour forcer une nouvelle vérification si email modifié
+        if ($client->isDirty('email')) {
+            $client->email_verified_at = null;
+        }
+
+        $client->save();
+
+        return redirect()->route('client.profile')->with('status', 'profile-updated');
     }
-
-    $client->save();
-
-    return redirect()->route('client.profile')->with('status', 'profile-updated');
-}
 
     /**
      * Display the change password form.
-     *
-     * @return \Illuminate\View\View
      */
     public function changePassword()
     {
@@ -503,9 +392,6 @@ class ClientController extends Controller
     
     /**
      * Update the client's password.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\RedirectResponse
      */
     public function updatePassword(Request $request)
     {
@@ -516,7 +402,6 @@ class ClientController extends Controller
         
         $client = Auth::guard('client')->user();
         
-        // Verify current password
         if (!Hash::check($validated['current_password'], $client->password)) {
             return back()->withErrors(['current_password' => 'Current password is incorrect.']);
         }
@@ -529,104 +414,32 @@ class ClientController extends Controller
     }
     
     /**
-     * Display the client's enrolled courses.
-     *
-     * @return \Illuminate\View\View
+     * Display the client's enrolled courses (legacy).
      */
     public function enrolledCourses()
     {
-        $client = Auth::guard('client')->user();
-        
-        try {
-            $enrolledCourses = DB::table('course_enrollments')
-                ->join('courses', 'course_enrollments.course_id', '=', 'courses.id')
-                ->where('course_enrollments.client_id', $client->id)
-                ->select('courses.*', 'course_enrollments.created_at as enrolled_at', 'course_enrollments.completed')
-                ->orderBy('course_enrollments.created_at', 'desc')
-                ->paginate(10);
-                
-            // Process image and PDF paths for enrolled courses
-            foreach ($enrolledCourses as $course) {
-                // Convert storage path to public path for images
-                if ($course->cover_image) {
-                    // If the path starts with 'storage/', remove it to get the relative path
-                    if (strpos($course->cover_image, 'storage/') === 0) {
-                        $course->cover_image = str_replace('storage/', '', $course->cover_image);
-                    }
-                    
-                    // Check if the image exists in public/images
-                    if (file_exists(public_path('images/' . basename($course->cover_image)))) {
-                        $course->cover_image = 'images/' . basename($course->cover_image);
-                    } else if (file_exists(public_path($course->cover_image))) {
-                        // Keep the path as is if it exists
-                    } else if (file_exists(public_path('storage/' . $course->cover_image))) {
-                        $course->cover_image = 'storage/' . $course->cover_image;
-                    }
-                }
-                
-                // Convert storage path to public path for PDFs
-                if ($course->pdf_file_path) {
-                    // If the path is a storage path, convert to public path
-                    if (strpos($course->pdf_file_path, 'app/') === 0) {
-                        $course->pdf_file_path = str_replace('app/', '', $course->pdf_file_path);
-                    }
-                    
-                    // Check if the PDF exists in public/pdfs
-                    if (file_exists(public_path('pdfs/' . basename($course->pdf_file_path)))) {
-                        $course->pdf_file_path = 'pdfs/' . basename($course->pdf_file_path);
-                    } else if (file_exists(public_path($course->pdf_file_path))) {
-                        // Keep the path as is if it exists
-                    } else if (file_exists(storage_path('app/' . $course->pdf_file_path))) {
-                        // Keep the original path for download method
-                    }
-                }
-            }
-        } catch (\Exception $e) {
-            // Si la table n'existe pas, retourner une collection vide
-            $enrolledCourses = collect()->paginate(10);
-        }
-            
-        return view('client.enrolled-courses', compact('enrolledCourses'));
+        return redirect()->route('client.purchased-courses');
     }
     
     /**
      * Display the client's download history.
-     *
-     * @return \Illuminate\View\View
      */
     public function downloadHistory()
     {
         $client = Auth::guard('client')->user();
         
         try {
-            $downloads = DB::table('course_downloads')
-                ->join('courses', 'course_downloads.course_id', '=', 'courses.id')
-                ->where('course_downloads.client_id', $client->id)
-                ->select('courses.title', 'courses.slug', 'courses.cover_image', 'course_downloads.created_at as downloaded_at')
-                ->orderBy('course_downloads.created_at', 'desc')
+            $downloads = Purchase::with('course')
+                ->where('client_id', $client->id)
+                ->orderBy('created_at', 'desc')
                 ->paginate(15);
                 
-            // Process image paths for downloads
             foreach ($downloads as $download) {
-                // Convert storage path to public path for images
-                if ($download->cover_image) {
-                    // If the path starts with 'storage/', remove it to get the relative path
-                    if (strpos($download->cover_image, 'storage/') === 0) {
-                        $download->cover_image = str_replace('storage/', '', $download->cover_image);
-                    }
-                    
-                    // Check if the image exists in public/images
-                    if (file_exists(public_path('images/' . basename($download->cover_image)))) {
-                        $download->cover_image = 'images/' . basename($download->cover_image);
-                    } else if (file_exists(public_path($download->cover_image))) {
-                        // Keep the path as is if it exists
-                    } else if (file_exists(public_path('storage/' . $download->cover_image))) {
-                        $download->cover_image = 'storage/' . $download->cover_image;
-                    }
+                if ($download->course) {
+                    $this->processCoursePaths($download->course);
                 }
             }
         } catch (\Exception $e) {
-            // Si la table n'existe pas, retourner une collection vide
             $downloads = collect()->paginate(15);
         }
             
@@ -634,107 +447,90 @@ class ClientController extends Controller
     }
     
     /**
-     * Display recommended courses based on client's interests and history.
-     *
-     * @return \Illuminate\View\View
+     * Display recommended courses.
      */
     public function recommendedCourses()
     {
         $client = Auth::guard('client')->user();
         
-        // Get recommended courses (fallback to popular courses)
         $recommendedCourses = Course::where('status', 'published')
             ->orderBy('rating', 'desc')
             ->orderBy('downloads_count', 'desc')
             ->take(6)
             ->get();
             
-        // Process image and PDF paths for recommended courses
         foreach ($recommendedCourses as $course) {
-            // Convert storage path to public path for images
-            if ($course->cover_image) {
-                // If the path starts with 'storage/', remove it to get the relative path
-                if (strpos($course->cover_image, 'storage/') === 0) {
-                    $course->cover_image = str_replace('storage/', '', $course->cover_image);
-                }
-                
-                // Check if the image exists in public/images
-                if (file_exists(public_path('images/' . basename($course->cover_image)))) {
-                    $course->cover_image = 'images/' . basename($course->cover_image);
-                } else if (file_exists(public_path($course->cover_image))) {
-                    // Keep the path as is if it exists
-                } else if (file_exists(public_path('storage/' . $course->cover_image))) {
-                    $course->cover_image = 'storage/' . $course->cover_image;
-                }
-            }
-            
-            // Convert storage path to public path for PDFs
-            if ($course->pdf_file_path) {
-                // If the path is a storage path, convert to public path
-                if (strpos($course->pdf_file_path, 'app/') === 0) {
-                    $course->pdf_file_path = str_replace('app/', '', $course->pdf_file_path);
-                }
-                
-                // Check if the PDF exists in public/pdfs
-                if (file_exists(public_path('pdfs/' . basename($course->pdf_file_path)))) {
-                    $course->pdf_file_path = 'pdfs/' . basename($course->pdf_file_path);
-                } else if (file_exists(public_path($course->pdf_file_path))) {
-                    // Keep the path as is if it exists
-                } else if (file_exists(storage_path('app/' . $course->pdf_file_path))) {
-                    // Keep the original path for download method
-                }
-            }
+            $this->processCoursePaths($course);
         }
             
         return view('client.recommended-courses', compact('recommendedCourses'));
     }
-    
+
     /**
-     * Download a course PDF.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
+     * Process course image and PDF paths
      */
-    public function downloadCourse($id)
+    private function processCoursePaths($course)
     {
-        $client = Auth::guard('client')->user();
-        $course = Course::findOrFail($id);
-        
-        try {
-            // Record the download
-            DB::table('course_downloads')->insert([
-                'client_id' => $client->id,
-                'course_id' => $course->id,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
-        } catch (\Exception $e) {
-            // Si la table n'existe pas, continuer sans enregistrer
+        if ($course->cover_image) {
+            if (strpos($course->cover_image, 'storage/') === 0) {
+                $course->cover_image = str_replace('storage/', '', $course->cover_image);
+            }
+            
+            if (file_exists(public_path('images/' . basename($course->cover_image)))) {
+                $course->cover_image = 'images/' . basename($course->cover_image);
+            } else if (file_exists(public_path($course->cover_image))) {
+                // Keep the path as is
+            } else if (file_exists(public_path('storage/' . $course->cover_image))) {
+                $course->cover_image = 'storage/' . $course->cover_image;
+            }
         }
         
-        // Increment the course download count
-        $course->increment('downloads_count');
-        
-        // Check if file exists in public/pdfs first
         if ($course->pdf_file_path) {
-            $pdfFileName = basename($course->pdf_file_path);
-            
-            // Check in public/pdfs
-            if (file_exists(public_path('pdfs/' . $pdfFileName))) {
-                return response()->download(public_path('pdfs/' . $pdfFileName));
+            if (strpos($course->pdf_file_path, 'app/') === 0) {
+                $course->pdf_file_path = str_replace('app/', '', $course->pdf_file_path);
             }
             
-            // Check in public path
-            if (file_exists(public_path($course->pdf_file_path))) {
-                return response()->download(public_path($course->pdf_file_path));
-            }
-            
-            // Check in storage path
-            if (file_exists(storage_path('app/' . $course->pdf_file_path))) {
-                return response()->download(storage_path('app/' . $course->pdf_file_path));
+            if (file_exists(public_path('pdfs/' . basename($course->pdf_file_path)))) {
+                $course->pdf_file_path = 'pdfs/' . basename($course->pdf_file_path);
+            } else if (file_exists(public_path($course->pdf_file_path))) {
+                // Keep the path as is
+            } else if (file_exists(storage_path('app/' . $course->pdf_file_path))) {
+                // Keep the original path for download method
             }
         }
-        
-        return redirect()->back()->with('error', 'Course file not found.');
+    }
+
+    /**
+     * Get popular programming languages from course tags
+     */
+    private function getPopularLanguages()
+    {
+        try {
+            $courses = Course::where('status', 'published')
+                ->whereNotNull('tags')
+                ->select('tags')
+                ->get();
+                
+            $allTags = collect();
+            foreach ($courses as $course) {
+                $tags = $course->tags;
+                if (is_string($tags)) {
+                    $tags = json_decode($tags, true);
+                }
+                if (is_array($tags)) {
+                    $allTags = $allTags->merge($tags);
+                }
+            }
+            
+            return $allTags->countBy()->sortDesc()->take(5);
+        } catch (\Exception $e) {
+            return collect([
+                'JavaScript' => 15,
+                'Python' => 12,
+                'PHP' => 10,
+                'Java' => 8,
+                'React' => 7
+            ]);
+        }
     }
 }

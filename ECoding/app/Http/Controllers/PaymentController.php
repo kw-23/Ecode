@@ -185,7 +185,7 @@ class PaymentController extends Controller
 
         return view('payment.success', [
             'course' => $course,
-            'purchase' => $purchase,
+            'purchases' => collect([$purchase]),
             'paymentIntentId' => $purchase->payment_intent_id
         ]);
     }

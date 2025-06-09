@@ -14,7 +14,52 @@ class ProfileController extends Controller
     |--------------------------------------------------------------------------
     | Admin User Profile Methods
     |--------------------------------------------------------------------------
+    | Client Image Methods
+    |--------------------------------------------------------------------------
     */
+
+    /**
+     * Upload or update the client's profile image.
+     */
+    public function updateClientImage(Request $request)
+    {
+        $client = Auth::guard('client')->user();
+
+        $request->validate([
+            'image' => ['required', 'image', 'mimes:jpeg,png,jpg,gif,svg,webp', 'max:2048'],
+        ]);
+
+        // Delete old image if exists
+        if ($client->image && file_exists(public_path($client->image))) {
+            @unlink(public_path($client->image));
+        }
+
+        $image = $request->file('image');
+        $imageName = 'clients/' . uniqid() . '.' . $image->getClientOriginalExtension();
+        $image->move(public_path('clients'), basename($imageName));
+
+        $client->image = $imageName;
+        $client->save();
+
+        return back()->with('status', 'image-updated');
+    }
+
+    /**
+     * Delete the client's profile image.
+     */
+    public function deleteClientImage(Request $request)
+    {
+        $client = Auth::guard('client')->user();
+
+        if ($client->image && file_exists(public_path($client->image))) {
+            @unlink(public_path($client->image));
+            $client->image = null;
+            $client->save();
+        }
+
+        return back()->with('status', 'image-deleted');
+    }
+  
 
     /**
      * Show the form for editing the admin user profile.

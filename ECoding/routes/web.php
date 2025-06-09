@@ -19,6 +19,50 @@ use App\Http\Controllers\CartController;
 |--------------------------------------------------------------------------
 */
 
+
+
+
+Route::middleware(['auth:client'])->group(function () {
+    // Main purchased courses page
+    Route::get('/my-courses', [ClientController::class, 'purchasedCourses'])
+        ->name('client.purchased-courses');
+    
+    // Alternative methods (for testing different approaches)
+    Route::get('/my-courses-alt', [ClientController::class, 'purchasedCoursesAlternative'])
+        ->name('client.purchased-courses-alt');
+    
+    Route::get('/my-courses-join', [ClientController::class, 'purchasedCoursesWithJoin'])
+        ->name('client.purchased-courses-join');
+    
+    // Show specific purchased course
+    Route::get('/my-course/{courseId}', [ClientController::class, 'showPurchasedCourse'])
+        ->name('client.purchased-course-detail');
+    
+    // Download course materials
+    Route::get('/download-course/{courseId}', [ClientController::class, 'downloadCourse'])
+        ->name('client.download-course');
+    
+    // Get purchase statistics (API endpoint)
+    Route::get('/api/purchase-stats', [ClientController::class, 'getPurchasedCourseStats'])
+        ->name('client.purchase-stats');
+});
+Route::middleware(['auth:client'])->group(function () {
+    Route::get('/courses/{course}/download', [CourseController::class, 'download'])
+        ->name('client.download-course');
+});
+// In your routes/web.php file
+Route::get('/client/download-course/{course}', [ClientController::class, 'downloadCourse'])
+    ->name('client.download-course')
+    ->middleware('auth:client');
+Route::get('/client/cart', [CartController::class, 'index'])->name('client.cart.index');
+// Route for creating a course (admin)
+Route::get('/courses/create', [CourseController::class, 'create'])->name('courses.create');
+Route::get('/courses/{courses}/show', [CourseController::class, 'show'])->name('courses.show');
+
+// Route for showing a course (admin)
+// (This route is not needed because Route::resource('courses', CourseController::class) already defines it.)
+// If you want to restrict admin viewing to only the resource route, you can remove this    line entirely.
+
 // Welcome page
 Route::get('/', function () {
     return view('welcome');
@@ -62,7 +106,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     });
 
     // Course management (admin)
-    Route::resource('courses', CourseController::class)->except(['show']);
+    Route::resource('courses', CourseController::class);
+    // Allow clients to create courses (admin panel)
     
     // Additional course management routes
     Route::prefix('courses')->name('courses.')->group(function () {
@@ -154,13 +199,18 @@ Route::middleware('guest:client')->group(function () {
 Route::middleware('auth:client')->group(function () {
     // Authentication
     Route::post('/client/logout', [ClientLoginController::class, 'logout'])->name('client.logout');
-
+    Route::get('/course/{course}/download', [CourseController::class, 'download'])
+        ->name('client.download-course');
+    
+    Route::get('/ajax/courses/{course}/check-enrollment', [CourseController::class, 'checkEnrollment'])
+        ->name('ajax.courses.check-enrollment');
     // Client dashboard and profile
     Route::get('/client/dashboard', [ClientController::class, 'dashboard'])->name('client.dashboard');
     Route::get('/client/profile', [ClientController::class, 'profile'])->name('client.profile');
     Route::put('/client/profile', [ClientController::class, 'updateProfile'])->name('client.profile.update');
     Route::post('/client/profile/avatar', [ClientController::class, 'updateAvatar'])->name('client.profile.avatar');
-
+    Route::post('/client/profile/image', [ProfileController::class, 'updateClientImage'])->name('client.profile.image.update');
+    Route::post('/client/profile/image/delete', [ProfileController::class, 'deleteClientImage'])->name('client.profile.image.delete');
     // Password management
     Route::get('/client/change-password', [ClientController::class, 'changePassword'])->name('client.password');
     Route::put('/client/change-password', [ClientController::class, 'updatePassword'])->name('client.password.update');

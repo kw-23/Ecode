@@ -78,7 +78,7 @@
                         </svg>
                         Profile
                     </a>
-                    <a href="{{ route('cart.index') }}" class="nav-link {{ request()->routeIs('cart.index') ? 'active' : '' }} relative">
+                    <a href="{{ route('client.cart.index') }}" class="nav-link {{ request()->routeIs('client.cart.index') ? 'active' : '' }} relative">
                         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13l-1.35 2.7A1 1 0 007.5 17h9a1 1 0 00.9-1.45L17 13M7 13V6a1 1 0 011-1h7a1 1 0 011 1v7"></path>
                         </svg>
@@ -87,21 +87,45 @@
                             <span class="cart-badge">{{ count(session('cart')) }}</span>
                         @endif
                     </a>
+                    <a href="{{ route('client.purchased-courses') }}" class="nav-link {{ request()->routeIs('client.purchased-courses') ? 'active' : '' }}">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="nav-icon">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
+                        </svg>
+                        <span>My Courses</span>
+                    </a>
                 </div>
 
                 <!-- User Section -->
                 <div class="user-section">
                     <!-- Desktop User Dropdown -->
                     <div class="hidden lg:block relative" x-data="{ open: false }" @click.away="open = false">
-                        <button @click="open = !open" class="user-button">
-                            <div class="user-avatar">
-                                {{ strtoupper(substr(auth()->guard('client')->user()->name ?? 'G', 0, 1)) }}
+                        @php
+                            $user = auth()->guard('client')->user();
+                        @endphp
+
+                        <button @click="open = !open" class="user-button flex items-center space-x-2">
+                            @if($user && $user->image && file_exists(public_path($user->image)))
+                                <div class="user-avatar w-10 h-10 rounded-full overflow-hidden">
+                                    <img src="{{ asset($user->image) }}" 
+                                         alt="User Avatar" 
+                                         class="w-full h-full object-cover"
+                                         onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                                    <div class="user-avatar avatar-placeholder w-10 h-10 rounded-full bg-gray-400 text-white items-center justify-center text-lg font-semibold" style="display: none;">
+                                        {{ strtoupper(substr($user->name ?? 'G', 0, 1)) }}
+                                    </div>
+                                </div>
+                            @else
+                                <div class="user-avatar avatar-placeholder w-10 h-10 rounded-full bg-gray-400 text-white flex items-center justify-center text-lg font-semibold">
+                                    {{ strtoupper(substr($user->name ?? 'G', 0, 1)) }}
+                                </div>
+                            @endif
+
+                            <div class="user-info text-left hidden md:block">
+                                <div class="user-name font-medium">{{ $user->name ?? 'Guest' }}</div>
+                                <div class="user-email text-sm text-gray-500">{{ \Illuminate\Support\Str::limit($user->email ?? '', 20) }}</div>
                             </div>
-                            <div class="user-info">
-                                <div class="user-name">{{ auth()->guard('client')->user()->name ?? 'Guest' }}</div>
-                                <div class="user-email">{{ Str::limit(auth()->guard('client')->user()->email ?? '', 20) }}</div>
-                            </div>
-                            <svg class="dropdown-arrow" :class="{ 'open': open }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+
+                            <svg class="dropdown-arrow w-5 h-5 transition-transform duration-200" :class="{ 'rotate-180': open }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                             </svg>
                         </button>
@@ -172,7 +196,7 @@
                     <a href="{{ route('client.profile') }}" class="mobile-nav-link {{ request()->routeIs('client.profile') ? 'active' : '' }}">
                         Profile
                     </a>
-                    <a href="{{ route('cart.index') }}" class="mobile-nav-link {{ request()->routeIs('cart.index') ? 'active' : '' }}">
+                    <a href="{{ route('client.cart.index') }}" class="mobile-nav-link {{ request()->routeIs('client.cart.index') ? 'active' : '' }}">
                         Cart
                         @if(session('cart') && count(session('cart')) > 0)
                             ({{ count(session('cart')) }})

@@ -359,10 +359,7 @@ class CourseController extends Controller
         // Check purchase status
         $purchaseStatus = $this->getPurchaseStatus($course->id);
         
-        if ($purchaseStatus['status'] !== 'purchased') {
-            return redirect()->back()
-                ->with('error', 'You must purchase this course before downloading materials.');
-        }
+        
 
         // Check if file exists
         if (!$course->pdf_file_path) {
