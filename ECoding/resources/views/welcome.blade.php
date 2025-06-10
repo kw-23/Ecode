@@ -4,7 +4,7 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
 
-        <title>E0coding - Programming Language PDF Courses</title>
+        <title>Ecoding - Programming Language PDF Courses</title>
 
         <!-- Fonts -->
         <link rel="preconnect" href="https://fonts.bunny.net">
@@ -87,39 +87,34 @@
                     <div class="flex justify-between h-16">
                         <div class="flex items-center">
                             <div class="flex-shrink-0 flex items-center">
-                                <span class="text-2xl font-bold gradient-text">E0coding</span>
+                                <span class="text-2xl font-bold gradient-text">Ecoding</span>
                             </div>
                         </div>
                        <!-- Dans la section Header, à l'intérieur de la div avec la classe "flex items-center" -->
 <div class="flex items-center">
     @if (Route::has('login'))
-        <div class="hidden space-x-4 sm:flex">
-            @auth
-                {{-- Authentifié comme user (guard web) --}}
-                <a href="{{ url('/dashboard') }}" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+    <div class="hidden space-x-4 sm:flex">
+        @auth
+            {{-- Authenticated as admin (guard: web) --}}
+            <a href="{{ url('/dashboard') }}" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                Dashboard
+            </a>
+        @else
+            @if(Auth::guard('client')->check())
+                {{-- Authenticated as client --}}
+                <a href="{{ route('client.dashboard') }}" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
                     Dashboard
                 </a>
             @else
-                @if(Auth::guard('client')->check())
-                    {{-- Authentifié comme client --}}
-                    <a href="{{ route('client.dashboard') }}" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                        Client Dashboard
-                    </a>
-                @else
-                    {{-- Non authentifié : afficher les options de connexion --}}
-                    <a href="{{ route('client.login') }}" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-indigo-700 bg-indigo-100 hover:bg-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                        Client Login
-                    </a>
+                {{-- Not authenticated --}}
+                <a href="{{ route('client.login') }}" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-indigo-700 bg-indigo-100 hover:bg-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                    Login
+                </a>
+            @endif
+        @endauth
+    </div>
+@endif
 
-                    <a href="{{ route('login') }}" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-indigo-700 bg-indigo-100 hover:bg-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                        Admin Login
-                    </a>
-
-                    
-                @endif
-            @endauth
-        </div>
-    @endif
 </div>
 
                         
@@ -137,8 +132,9 @@
                             <div class="sm:text-center md:max-w-2xl md:mx-auto lg:col-span-6 lg:text-left">
                                 <h1 class="text-4xl tracking-tight font-extrabold text-gray-900 dark:text-white sm:text-5xl md:text-6xl">
                                     <span class="block">Master Programming with</span>
-                                    <span class="block gradient-text">E0coding PDF Courses</span>
+                                    <span class="block gradient-text">Ecoding PDF Courses</span>
                                 </h1>
+                        
                                 <p class="mt-3 text-base text-gray-600 dark:text-gray-300 sm:mt-5 sm:text-lg sm:max-w-xl sm:mx-auto md:mt-5 md:text-xl lg:mx-0">
                                     Comprehensive, well-structured PDF guides to help you learn programming languages efficiently. From beginners to advanced developers.
                                 </p>
@@ -167,7 +163,7 @@
                                         <div class="p-4">
                                             <pre class="text-sm code-text text-gray-800 dark:text-gray-200"><span class="text-purple-600 dark:text-purple-400">function</span> <span class="text-blue-600 dark:text-blue-400">learnToCode</span>() {
   <span class="text-purple-600 dark:text-purple-400">const</span> languages = [<span class="text-green-600 dark:text-green-400">'JavaScript'</span>, <span class="text-green-600 dark:text-green-400">'Python'</span>, <span class="text-green-600 dark:text-green-400">'Java'</span>];
-  <span class="text-purple-600 dark:text-purple-400">const</span> platform = <span class="text-green-600 dark:text-green-400">'E0coding'</span>;
+  <span class="text-purple-600 dark:text-purple-400">const</span> platform = <span class="text-green-600 dark:text-green-400">'Ecoding'</span>;
   
   <span class="text-purple-600 dark:text-purple-400">return</span> <span class="text-blue-600 dark:text-blue-400">languages.map</span>(lang => {
     <span class="text-purple-600 dark:text-purple-400">return</span> <span class="text-green-600 dark:text-green-400">`Master ${lang} with ${platform}!`</span>;
@@ -186,7 +182,7 @@
                     <div class="container mx-auto px-4 sm:px-6 lg:px-8">
                         <div class="text-center">
                             <h2 class="text-3xl font-extrabold text-gray-900 dark:text-white sm:text-4xl">
-                                Why Choose E0coding?
+                                Why Choose Ecoding?
                             </h2>
                             <p class="mt-4 max-w-2xl text-xl text-gray-600 dark:text-gray-300 mx-auto">
                                 Our PDF courses are designed with developers in mind
@@ -389,7 +385,7 @@
                                     </div>
                                     <div class="ml-4">
                                         <p class="text-base text-gray-600 dark:text-gray-300">
-                                            "I've tried many online courses, but E0coding's Python PDF guide was the most structured and practical. I could learn offline and at my own pace, which was perfect for my busy schedule."
+                                            "I've tried many online courses, but Ecoding's Python PDF guide was the most structured and practical. I could learn offline and at my own pace, which was perfect for my busy schedule."
                                         </p>
                                         <div class="mt-4">
                                             <p class="text-base font-medium text-gray-900 dark:text-white">Sarah Miller</p>
@@ -430,7 +426,7 @@
                                 Ready to Start Your Coding Journey?
                             </h2>
                             <p class="mt-4 max-w-2xl text-xl text-indigo-100 mx-auto">
-                                Join thousands of developers who have accelerated their careers with E0coding
+                                Join thousands of developers who have accelerated their careers with Ecoding
                             </p>
                             <div class="mt-8 flex justify-center">
                                 @if(Auth::guard('client')->check())
@@ -457,11 +453,11 @@
                 <div class="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
                     <div class="md:flex md:items-center md:justify-between">
                         <div class="flex justify-center md:justify-start">
-                            <span class="text-xl font-bold gradient-text">E0coding</span>
+                            <span class="text-xl font-bold gradient-text">0coding</span>
                         </div>
                         <div class="mt-8 md:mt-0">
                             <p class="text-center text-base text-gray-500 dark:text-gray-400">
-                                &copy; {{ date('Y') }} E0coding. All rights reserved.
+                                &copy; {{ date('Y') }} Ecoding. All rights reserved.
                             </p>
                         </div>
                     </div>

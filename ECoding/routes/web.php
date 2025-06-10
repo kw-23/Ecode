@@ -12,13 +12,28 @@ use App\Http\Controllers\CourseReviewController;
 use App\Http\Controllers\CourseCategoryController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\CartController;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Auth;
 
 /*
 |--------------------------------------------------------------------------
 | Web Routes
 |--------------------------------------------------------------------------
 */
+Route::get('/courses/create', [CourseController::class, 'create'])->name('courses.create');
+Route::middleware(['auth:client'])->prefix('client')->name('client.')->group(function () {
+    Route::get('/profile', [ProfileController::class, 'editClient'])->name('profile.edit');
+    Route::put('/profile', [ProfileController::class, 'updateClient'])->name('profile.update');
+    Route::post('/profile/image/upload', [ProfileController::class, 'uploadImage'])->name('profile.image.upload');
+    Route::post('/profile/image/update', [ProfileController::class, 'updateClientImage'])->name('profile.image.update');
+    Route::delete('/profile/image/remove', [ProfileController::class, 'removeClientImage'])->name('profile.image.remove');
+    Route::delete('/profile/image/delete', [ProfileController::class, 'deleteImage'])->name('profile.image.delete');
+    Route::put('/profile/password', [ProfileController::class, 'updateClientPassword'])->name('profile.password.update');
+});
 
+Route::post('/profile/image/update', [ProfileController::class, 'updateClientImage'])
+    ->name('client.profile.image.update');
+Route::delete('/client/profile/image/remove', [ProfileController::class, 'removeClientImage'])->name('client.profile.image.remove');
 
 
 
@@ -57,11 +72,6 @@ Route::get('/client/download-course/{course}', [ClientController::class, 'downlo
 Route::get('/client/cart', [CartController::class, 'index'])->name('client.cart.index');
 // Route for creating a course (admin)
 Route::get('/courses/create', [CourseController::class, 'create'])->name('courses.create');
-Route::get('/courses/{courses}/show', [CourseController::class, 'show'])->name('courses.show');
-
-// Route for showing a course (admin)
-// (This route is not needed because Route::resource('courses', CourseController::class) already defines it.)
-// If you want to restrict admin viewing to only the resource route, you can remove this    line entirely.
 
 // Welcome page
 Route::get('/', function () {
@@ -381,3 +391,16 @@ Route::redirect('/admin', '/dashboard');
 */
 
 require __DIR__.'/auth.php';
+
+// Test email configuration (remove this in production)
+Route::get('/test-email', function () {
+    try {
+        Mail::raw('Test email from Laravel application', function($message) {
+            $message->to(Auth::guard('client')->user()->email)
+                   ->subject('Test Email');
+        });
+        return 'Test email sent successfully!';
+    } catch (\Exception $e) {
+        return 'Error sending email: ' . $e->getMessage();
+    }
+})->middleware(['auth:client']);

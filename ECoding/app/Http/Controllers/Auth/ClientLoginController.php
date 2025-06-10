@@ -20,9 +20,15 @@ class ClientLoginController extends Controller
             'password' => 'required',
         ]);
 
+        // Try client guard first
         if (Auth::guard('client')->attempt($credentials, $request->filled('remember'))) {
             $request->session()->regenerate();
             return redirect()->intended(route('client.dashboard'));
+        }
+        // Try user (web) guard
+        if (Auth::guard('web')->attempt($credentials, $request->filled('remember'))) {
+            $request->session()->regenerate();
+            return redirect()->intended(route('dashboard'));
         }
 
         return back()->withErrors([
@@ -33,6 +39,7 @@ class ClientLoginController extends Controller
     public function logout(Request $request)
     {
         Auth::guard('client')->logout();
+        Auth::guard('web')->logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
         return redirect()->route('client.login');

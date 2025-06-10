@@ -6,9 +6,12 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use App\Models\Course;
 use App\Models\Purchase;
 use App\Models\Client;
+use App\Mail\PurchaseConfirmation;
+use App\Mail\PaymentConfirmationMail;
 
 class PaymentController extends Controller
 {
@@ -100,6 +103,27 @@ class PaymentController extends Controller
                     'payment_method' => 'stripe',
                     'completed_at' => now(),
                 ]);
+
+                // Send confirmation email
+                try {
+                    Log::info('Attempting to send purchase confirmation email', [
+                        'purchase_id' => $purchase->id,
+                        'client_email' => $client->email
+                    ]);
+                    
+                    Mail::to($client->email)->send(new PurchaseConfirmation($purchase));
+                    
+                    Log::info('Purchase confirmation email sent successfully', [
+                        'purchase_id' => $purchase->id,
+                        'client_email' => $client->email
+                    ]);
+                } catch (\Exception $e) {
+                    Log::error('Failed to send purchase confirmation email', [
+                        'purchase_id' => $purchase->id,
+                        'client_email' => $client->email,
+                        'error' => $e->getMessage()
+                    ]);
+                }
 
                 return response()->json([
                     'success' => true,
@@ -253,6 +277,24 @@ class PaymentController extends Controller
                 'status' => 'completed',
                 'completed_at' => now(),
             ]);
+
+            // Send confirmation email
+            try {
+                Mail::to($purchase->client->email)
+                    ->queue(new PaymentConfirmationMail($purchase));
+                Log::info('Purchase confirmation email queued successfully from webhook', [
+                    'purchase_id' => $purchase->id,
+                    'client_id' => $purchase->client_id,
+                    'client_email' => $purchase->client->email
+                ]);
+            } catch (\Exception $e) {
+                Log::error('Failed to queue purchase confirmation email from webhook: ' . $e->getMessage(), [
+                    'purchase_id' => $purchase->id,
+                    'client_id' => $purchase->client_id,
+                    'client_email' => $purchase->client->email,
+                    'exception' => $e
+                ]);
+            }
 
             Log::info('Payment confirmed via webhook', ['purchase_id' => $purchase->id]);
         }

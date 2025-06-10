@@ -11,6 +11,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Mail;
+use App\Mail\CartPurchaseConfirmationMail;
 
 class CartController extends Controller
 {
@@ -316,14 +318,31 @@ class CartController extends Controller
             if ($response->successful()) {
                 $paymentData = $response->json();
                 
-                // Create pending purchase records
+                // Create pending purchase records with calculated prices
                 DB::transaction(function () use ($cartItems, $clientId, $paymentData) {
+                    // Calculate pricing breakdown
+                    $subtotal = $cartItems->sum('total');
+                    $discount = $subtotal * 0.1; // 10% discount
+                    $tax = ($subtotal - $discount) * 0.08; // 8% tax
+                    $shipping = 0; // Free shipping
+                    $finalTotal = $subtotal - $discount + $tax + $shipping;
+
+                    // Calculate individual course prices after discount and tax
+                    $discountRate = $discount / $subtotal; // Discount rate per course
+                    $taxRate = $tax / ($subtotal - $discount); // Tax rate after discount
+
                     foreach ($cartItems as $item) {
+                        $courseSubtotal = $item->price;
+                        $courseDiscount = $courseSubtotal * $discountRate;
+                        $coursePriceAfterDiscount = $courseSubtotal - $courseDiscount;
+                        $courseTax = $coursePriceAfterDiscount * $taxRate;
+                        $finalCoursePrice = $coursePriceAfterDiscount + $courseTax;
+
                         Purchase::create([
                             'client_id' => $clientId,
                             'course_id' => $item->course_id,
                             'payment_intent_id' => $paymentData['payment_intent_id'] ?? null,
-                            'amount' => $item->price,
+                            'amount' => $finalCoursePrice,
                             'status' => 'pending',
                             'purchased_at' => now(),
                         ]);
@@ -353,7 +372,9 @@ class CartController extends Controller
                 ]
             ], 422);
         } catch (\Exception $e) {
-            Log::error('Cart payment processing error: ' . $e->getMessage());
+            Log::error('Cart payment processing error: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString()
+            ]);
             
             return response()->json([
                 'error' => [
@@ -407,10 +428,41 @@ class CartController extends Controller
                 ->with(['course.category', 'course.instructor'])
                 ->get();
 
+            // Get client details for email
+            $client = Auth::guard('client')->user();
+            
+            // Send confirmation email
+            try {
+                Log::info('Attempting to send cart purchase confirmation email', [
+                    'client_id' => $clientId,
+                    'payment_intent_id' => $paymentIntentId,
+                    'courses_count' => $purchasedCourses->count()
+                ]);
+
+                Mail::to($client->email)->send(new CartPurchaseConfirmationMail($purchasedCourses, $client));
+
+                Log::info('Cart purchase confirmation email sent successfully', [
+                    'client_id' => $clientId,
+                    'payment_intent_id' => $paymentIntentId
+                ]);
+            } catch (\Exception $e) {
+                Log::error('Failed to send cart purchase confirmation email', [
+                    'client_id' => $clientId,
+                    'payment_intent_id' => $paymentIntentId,
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString()
+                ]);
+                // Don't throw the error - we still want to show the success page
+            }
+
             return view('cart.payment-success', compact('purchasedCourses'));
 
         } catch (\Exception $e) {
-            Log::error('Cart payment success processing error: ' . $e->getMessage());
+            Log::error('Cart payment success processing error: ' . $e->getMessage(), [
+                'client_id' => $clientId,
+                'payment_intent_id' => $paymentIntentId,
+                'trace' => $e->getTraceAsString()
+            ]);
             
             return redirect()->route('cart.index')
                 ->with('error', 'There was an issue processing your payment. Please contact support.');

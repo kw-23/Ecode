@@ -725,56 +725,7 @@ body, .success-page {
 
         <div class="success-content">
             <!-- Purchase Summary -->
-            <div class="purchase-summary">
-                <h2 class="summary-title">
-                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
-                    </svg>
-                    Purchase Summary
-                </h2>
-
-                <div class="courses-list">
-                    @if(isset($purchases) && $purchases->count() > 0)
-                        @foreach($purchases as $purchase)
-                            <div class="course-item">
-                                <div class="course-image">
-                                    @if($purchase->course->thumbnail)
-                                        <img src="{{ asset('storage/' . $purchase->course->thumbnail) }}" 
-                                             alt="{{ $purchase->course->title }}" 
-                                             onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\'course-placeholder\'><svg width=\'24\' height=\'24\' fill=\'none\' stroke=\'currentColor\' viewBox=\'0 0 24 24\'><path stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253\'></path></svg></div>';">
-                                    @else
-                                        <div class="course-placeholder">
-                                            <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
-                                            </svg>
-                                        </div>
-                                    @endif
-                                </div>
-                                <div class="course-details">
-                                    <h3 class="course-title">{{ $purchase->course->title }}</h3>
-                                    @if($purchase->course->instructor)
-                                        <p class="course-instructor">By {{ $purchase->course->instructor->name }}</p>
-                                    @endif
-                                </div>
-                                <div class="course-price">${{ number_format($purchase->amount, 2) }}</div>
-                            </div>
-                        @endforeach
-
-                        <div class="total-summary">
-                            <span class="total-label">Total Paid:</span>
-                            <span class="total-amount">${{ number_format($purchases->sum('amount'), 2) }}</span>
-                        </div>
-                    @else
-                        <div class="course-item">
-                            <div class="course-details">
-                                <h3 class="course-title">No purchase details available</h3>
-                                <p class="course-instructor">Please contact support if you need assistance</p>
-                            </div>
-                        </div>
-                    @endif
-                </div>
-            </div>
-
+            
             <!-- Course Features -->
             <div class="features-grid">
                 <div class="feature-item">
@@ -802,38 +753,30 @@ body, .success-page {
             </div>
 
             <!-- Payment Details -->
-            <div class="payment-details">
-                <h3 class="details-title">
-                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                    </svg>
-                    Payment Details
-                </h3>
+            <div class="payment-details bg-white p-6 rounded-lg shadow-lg">
                 
-                <div class="detail-row">
-                    <span class="detail-label">Courses Purchased</span>
-                    <span class="detail-value">{{ ($purchases ?? collect())->count() }} Course(s)</span>
-                </div>
+            
                 
-                <div class="detail-row">
-                    <span class="detail-label">Total Amount</span>
-                    <span class="detail-value">${{ number_format(($purchases ?? collect())->sum('amount'), 2) }}</span>
-                </div>
-                
-                <div class="detail-row">
-                    <span class="detail-label">Payment Date</span>
+            
+                <div class="detail-row flex justify-between py-1 text-gray-700">
+                    <span class="detail-label font-medium">Payment Date</span>
                     <span class="detail-value">{{ now()->format('M d, Y \a\t g:i A') }}</span>
                 </div>
-               
+            
                 @if(isset($paymentIntentId) && $paymentIntentId)
-                <div class="detail-row">
-                    <span class="detail-label">Transaction ID</span>
-                    <span class="detail-value">
-                        <span class="transaction-id" title="Click to copy">{{ $paymentIntentId }}</span>
-                    </span>
-                </div>
+                    <div class="detail-row flex justify-between py-1 text-gray-700">
+                        <span class="detail-label font-medium">Transaction ID</span>
+                        <span 
+                            class="detail-value cursor-pointer text-indigo-600 hover:underline transaction-id"
+                            onclick="navigator.clipboard.writeText('{{ $paymentIntentId }}'); alert('Transaction ID copied!');"
+                            title="Click to copy"
+                        >
+                            {{ $paymentIntentId }}
+                        </span>
+                    </div>
                 @endif
             </div>
+            
 
             <!-- Action Buttons -->
             <div class="action-buttons">

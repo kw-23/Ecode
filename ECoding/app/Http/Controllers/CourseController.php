@@ -230,15 +230,24 @@ class CourseController extends Controller
             ->where('id', '!=', $course->id)
             ->take(3)
             ->get();
+
+        // Get course statistics
+        $courseStats = [
+            'enrollments' => $course->enrollments()->count(),
+            'reviews' => $reviews->count(),
+            'downloads' => $course->downloads_count ?? 0,
+            'rating' => $averageRating
+        ];
         
-        return view('client.course-detail', compact(
+        return view('courses.show', compact(
             'course', 
             'reviews', 
             'averageRating', 
             'userReview', 
             'isEnrolled', 
             'relatedCourses',
-            'purchaseStatus'
+            'purchaseStatus',
+            'courseStats'
         ));
     }
 
